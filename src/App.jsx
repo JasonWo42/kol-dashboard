@@ -3,10 +3,34 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 
 // 模拟数据
 const mockCampaigns = [
+  // FY25 Campaign
   {
     id: 'campaign1',
+    name: '新年促销',
+    productName: '智能手表',
+    fy: 'FY25',
+    startDate: '2025-12-01',
+    endDate: '2025-12-31',
+    totalBudget: 75000,
+    totalSpent: 60000,
+    kolCount: 6,
+    contentCount: 12,
+    totalViews: 750000,
+    totalInteractions: 28000,
+    platforms: {
+      xiaohongshu: { views: 250000, cost: 15000 },
+      douyin: { views: 400000, cost: 35000 },
+      bilibili: { views: 100000, cost: 10000 },
+      other: { views: 0, cost: 0 }
+    }
+  },
+  
+  // FY26 Campaigns
+  {
+    id: 'campaign2',
     name: '夏季新品推广',
     productName: '清凉系列饮料',
+    fy: 'FY26',
     startDate: '2026-01-01',
     endDate: '2026-01-31',
     totalBudget: 100000,
@@ -22,10 +46,35 @@ const mockCampaigns = [
       other: { views: 0, cost: 0 }
     }
   },
+  
+  // FY27 Campaigns
   {
-    id: 'campaign2',
+    id: 'campaign3',
+    name: '品牌形象打造',
+    productName: '高端护肤系列',
+    fy: 'FY27',
+    startDate: '2027-01-01',
+    endDate: '2027-01-31',
+    totalBudget: 90000,
+    totalSpent: 72000,
+    kolCount: 12,
+    contentCount: 24,
+    totalViews: 980000,
+    totalInteractions: 38000,
+    platforms: {
+      xiaohongshu: { views: 500000, cost: 30000 },
+      douyin: { views: 380000, cost: 30000 },
+      bilibili: { views: 100000, cost: 12000 },
+      other: { views: 0, cost: 0 }
+    }
+  },
+  
+  // 额外的Campaign，分配到FY26
+  {
+    id: 'campaign4',
     name: '节日促销活动',
     productName: '智能手表',
+    fy: 'FY26',
     startDate: '2026-02-01',
     endDate: '2026-02-29',
     totalBudget: 80000,
@@ -41,26 +90,29 @@ const mockCampaigns = [
       other: { views: 0, cost: 0 }
     }
   },
+  
+  // 座位sample的campaign项目
   {
-    id: 'campaign3',
-    name: '品牌形象打造',
+    id: 'campaign5',
+    name: '座位Sample项目',
     productName: '高端护肤系列',
+    fy: 'FY26',
     startDate: '2026-03-01',
     endDate: '2026-03-31',
-    totalBudget: 90000,
-    totalSpent: 72000,
-    kolCount: 12,
-    contentCount: 24,
-    totalViews: 980000,
-    totalInteractions: 38000,
+    totalBudget: 60000,
+    totalSpent: 50000,
+    kolCount: 5,
+    contentCount: 10,
+    totalViews: 650000,
+    totalInteractions: 25000,
     platforms: {
-      xiaohongshu: { views: 500000, cost: 30000 },
-      douyin: { views: 380000, cost: 30000 },
-      bilibili: { views: 100000, cost: 12000 },
+      xiaohongshu: { views: 350000, cost: 20000 },
+      douyin: { views: 250000, cost: 25000 },
+      bilibili: { views: 50000, cost: 5000 },
       other: { views: 0, cost: 0 }
     }
   }
-]
+] // 五个campaign分别分配到三个FY中：FY25(1), FY26(3), FY27(1)
 
 const mockKOLs = [
   {
@@ -171,6 +223,17 @@ function App() {
   const [selectedKOL, setSelectedKOL] = useState(mockKOLs[0])
   const [selectedCampaignFilter, setSelectedCampaignFilter] = useState('all')
   const [selectedCampaignsForComparison, setSelectedCampaignsForComparison] = useState([])
+  
+  // Campaign分析页面的过滤状态
+  const [selectedFYs, setSelectedFYs] = useState([]) // 默认不选择任何财年
+  const [selectedProducts, setSelectedProducts] = useState([]) // 默认不选择任何产品
+  const [selectedCampaignFiltered, setSelectedCampaignFiltered] = useState(null) // 默认未选择任何campaign
+  // 下拉菜单显示状态
+  const [showFYDropdown, setShowFYDropdown] = useState(false)
+  const [showProductDropdown, setShowProductDropdown] = useState(false)
+  // 显示文本状态
+  const [fyDisplayText, setFyDisplayText] = useState('请选择') // 默认显示"请选择"
+  const [productDisplayText, setProductDisplayText] = useState('请选择')
   
   // Campaign管理状态
   const [campaigns, setCampaigns] = useState(mockCampaigns)
@@ -453,133 +516,228 @@ function App() {
         {/* Campaign分析 */}
         {activeTab === 'campaign' && (
           <div>
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <label className="block text-sm font-medium text-gray-700">选择Campaign</label>
-              </div>
-              <select
-                value={selectedCampaign.id}
-                onChange={(e) => setSelectedCampaign(campaigns.find(c => c.id === e.target.value))}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
-              >
-                {campaigns.map(campaign => (
-                  <option key={campaign.id} value={campaign.id}>
-                    {campaign.name} - {campaign.productName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             <div className="bg-white shadow rounded-lg p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">{selectedCampaign.name} - {selectedCampaign.productName}</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">选择过滤条件</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">KOL数量</p>
-                  <p className="text-2xl font-bold text-gray-900">{selectedCampaign.kolCount}</p>
-                </div>
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">内容数量</p>
-                  <p className="text-2xl font-bold text-gray-900">{selectedCampaign.contentCount}</p>
-                </div>
-                <div className="bg-yellow-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">总预算</p>
-                  <p className="text-2xl font-bold text-gray-900">¥{selectedCampaign.totalBudget.toLocaleString()}</p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">总播放量</p>
-                  <p className="text-2xl font-bold text-gray-900">{selectedCampaign.totalViews.toLocaleString()}</p>
-                </div>
-                <div className="bg-red-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">总互动量</p>
-                  <p className="text-2xl font-bold text-gray-900">{selectedCampaign.totalInteractions.toLocaleString()}</p>
-                </div>
-                <div className="bg-indigo-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">总CPV</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    ¥{(selectedCampaign.totalBudget / selectedCampaign.totalViews).toFixed(2)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white shadow rounded-lg p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">分平台数据</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">小红书</p>
-                  <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.xiaohongshu.views.toLocaleString()}</p>
-                  <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.xiaohongshu.cost.toLocaleString()}</p>
-                  <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.xiaohongshu.cost / selectedCampaign.platforms.xiaohongshu.views || 1).toFixed(2)}</p>
-                </div>
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">抖音</p>
-                  <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.douyin.views.toLocaleString()}</p>
-                  <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.douyin.cost.toLocaleString()}</p>
-                  <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.douyin.cost / selectedCampaign.platforms.douyin.views || 1).toFixed(2)}</p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">B站</p>
-                  <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.bilibili.views.toLocaleString()}</p>
-                  <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.bilibili.cost.toLocaleString()}</p>
-                  <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.bilibili.cost / selectedCampaign.platforms.bilibili.views || 1).toFixed(2)}</p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">其他平台</p>
-                  <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.other.views.toLocaleString()}</p>
-                  <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.other.cost.toLocaleString()}</p>
-                  <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.other.cost / selectedCampaign.platforms.other.views || 1).toFixed(2)}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white shadow rounded-lg p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">选择对比Campaign</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {campaigns.map(campaign => (
-                  <div key={campaign.id} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id={`campaign-${campaign.id}`}
-                      checked={selectedCampaignsForComparison.includes(campaign.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedCampaignsForComparison([...selectedCampaignsForComparison, campaign.id])
-                        } else {
-                          setSelectedCampaignsForComparison(selectedCampaignsForComparison.filter(id => id !== campaign.id))
-                        }
-                      }}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor={`campaign-${campaign.id}`} className="ml-2 block text-sm text-gray-900">
-                      {campaign.name} - {campaign.productName}
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Campaign表现对比</h2>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={selectedCampaignsForComparison.length > 0 ? campaigns.filter(campaign => selectedCampaignsForComparison.includes(campaign.id)) : []}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                {/* 财政年度下拉选择 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">财政年度</label>
+                  <select
+                    value={fyDisplayText}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFyDisplayText(value);
+                      if (value === 'Select all') {
+                        setSelectedFYs(['FY25', 'FY26', 'FY27']);
+                      } else if (value === '请选择') {
+                        setSelectedFYs([]);
+                      } else {
+                        setSelectedFYs([value]);
+                      }
+                      setSelectedCampaignFiltered(null); // 重置campaign选择
+                    }}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
                   >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="platforms.xiaohongshu.views" name="小红书播放量" stackId="a" fill="#ff6b6b" />
-                    <Bar dataKey="platforms.douyin.views" name="抖音播放量" stackId="a" fill="#4ecdc4" />
-                    <Bar dataKey="platforms.bilibili.views" name="B站播放量" stackId="a" fill="#45b7d1" />
-                    <Bar dataKey="platforms.other.views" name="其他平台播放量" stackId="a" fill="#999999" />
-                    <Bar dataKey="totalInteractions" name="互动量" fill="#82ca9d" />
-                  </BarChart>
-                </ResponsiveContainer>
+                    <option value="请选择">请选择</option>
+                    <option value="Select all">Select all</option>
+                    {['FY25', 'FY26', 'FY27'].map(fy => (
+                      <option key={fy} value={fy}>
+                        {fy}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* 产品下拉选择 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">产品</label>
+                  <select
+                    value={productDisplayText}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setProductDisplayText(value);
+                      if (value === 'Select all') {
+                        const allProducts = [...new Set(campaigns.filter(c => selectedFYs.length > 0 ? selectedFYs.includes(c.fy) : true).map(c => c.productName))];
+                        setSelectedProducts(allProducts);
+                      } else if (value === '请选择') {
+                        setSelectedProducts([]);
+                      } else {
+                        setSelectedProducts([value]);
+                      }
+                      setSelectedCampaignFiltered(null); // 重置campaign选择
+                    }}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                  >
+                    <option value="请选择">请选择</option>
+                    <option value="Select all">Select all</option>
+                    {/* 基于所选财政年度动态生成产品选项 */}
+                    {[...new Set(campaigns.filter(c => selectedFYs.length > 0 ? selectedFYs.includes(c.fy) : true).map(c => c.productName))].map(product => (
+                      <option key={product} value={product}>
+                        {product}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Campaign选择器 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Campaign</label>
+                  <select
+                    value={selectedCampaignFiltered || ''}
+                    onChange={(e) => {
+                      const campaignId = e.target.value;
+                      if (campaignId) {
+                        setSelectedCampaignFiltered(campaignId);
+                        const campaign = campaigns.find(c => c.id === campaignId);
+                        if (campaign) {
+                          setSelectedCampaign(campaign);
+                        }
+                      } else {
+                        setSelectedCampaignFiltered(null);
+                      }
+                    }}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                  >
+                    <option value="">请选择Campaign</option>
+                    {/* 基于所选财政年度和产品动态生成campaign选项 */}
+                    {(() => {
+                      const filteredCampaigns = campaigns.filter(c => {
+                        const fyMatch = selectedFYs.length === 0 || selectedFYs.includes(c.fy);
+                        const productMatch = selectedProducts.length === 0 || selectedProducts.includes(c.productName);
+                        return fyMatch && productMatch;
+                      });
+                      return filteredCampaigns.map(campaign => (
+                        <option key={campaign.id} value={campaign.id}>
+                          {campaign.name} - {campaign.productName}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                </div>
               </div>
             </div>
+
+            {selectedCampaignFiltered ? (
+              <>
+                <div className="bg-white shadow rounded-lg p-6 mb-6">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">{selectedCampaign.name} - {selectedCampaign.productName}</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">KOL数量</p>
+                      <p className="text-2xl font-bold text-gray-900">{selectedCampaign.kolCount}</p>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">内容数量</p>
+                      <p className="text-2xl font-bold text-gray-900">{selectedCampaign.contentCount}</p>
+                    </div>
+                    <div className="bg-yellow-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">总预算</p>
+                      <p className="text-2xl font-bold text-gray-900">¥{selectedCampaign.totalBudget.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">总播放量</p>
+                      <p className="text-2xl font-bold text-gray-900">{selectedCampaign.totalViews.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-red-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">总互动量</p>
+                      <p className="text-2xl font-bold text-gray-900">{selectedCampaign.totalInteractions.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-indigo-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">总CPV</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        ¥{(selectedCampaign.totalBudget / selectedCampaign.totalViews).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white shadow rounded-lg p-6 mb-6">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">分平台数据</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">小红书</p>
+                      <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.xiaohongshu.views.toLocaleString()}</p>
+                      <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.xiaohongshu.cost.toLocaleString()}</p>
+                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.xiaohongshu.cost / selectedCampaign.platforms.xiaohongshu.views || 1).toFixed(2)}</p>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">抖音</p>
+                      <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.douyin.views.toLocaleString()}</p>
+                      <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.douyin.cost.toLocaleString()}</p>
+                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.douyin.cost / selectedCampaign.platforms.douyin.views || 1).toFixed(2)}</p>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">B站</p>
+                      <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.bilibili.views.toLocaleString()}</p>
+                      <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.bilibili.cost.toLocaleString()}</p>
+                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.bilibili.cost / selectedCampaign.platforms.bilibili.views || 1).toFixed(2)}</p>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-500">其他平台</p>
+                      <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.other.views.toLocaleString()}</p>
+                      <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.other.cost.toLocaleString()}</p>
+                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.other.cost / selectedCampaign.platforms.other.views || 1).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white shadow rounded-lg p-6 mb-6">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">选择对比Campaign</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {campaigns.map(campaign => (
+                      <div key={campaign.id} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id={`campaign-${campaign.id}`}
+                          checked={selectedCampaignsForComparison.includes(campaign.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCampaignsForComparison([...selectedCampaignsForComparison, campaign.id])
+                            } else {
+                              setSelectedCampaignsForComparison(selectedCampaignsForComparison.filter(id => id !== campaign.id))
+                            }
+                          }}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor={`campaign-${campaign.id}`} className="ml-2 block text-sm text-gray-900">
+                          {campaign.name} - {campaign.productName}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white shadow rounded-lg p-6">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Campaign表现对比</h2>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={selectedCampaignsForComparison.length > 0 ? campaigns.filter(campaign => selectedCampaignsForComparison.includes(campaign.id)) : []}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="platforms.xiaohongshu.views" name="小红书播放量" stackId="a" fill="#ff6b6b" />
+                        <Bar dataKey="platforms.douyin.views" name="抖音播放量" stackId="a" fill="#4ecdc4" />
+                        <Bar dataKey="platforms.bilibili.views" name="B站播放量" stackId="a" fill="#45b7d1" />
+                        <Bar dataKey="platforms.other.views" name="其他平台播放量" stackId="a" fill="#999999" />
+                        <Bar dataKey="totalInteractions" name="互动量" fill="#82ca9d" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="bg-white shadow rounded-lg p-6 mb-6">
+                <div className="flex flex-col items-center justify-center py-12">
+                  <p className="text-gray-500 text-lg">请选择一个Campaign以查看详细信息</p>
+                  <p className="text-gray-400 mt-2">您需要先在上方选择框中选择一个Campaign</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -948,13 +1106,8 @@ function App() {
                               </div>
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">{video.name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
-                              <a href={video.videoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center">
-                                <img 
-                                  src={video.platformIcon} 
-                                  alt={video.platform} 
-                                  className="w-5 h-5 mr-2"
-                                />
+                            <td className="px-6 py-4 text-sm text-gray-900">
+                              <a href={video.videoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                                 查看视频
                               </a>
                             </td>
@@ -980,30 +1133,74 @@ function App() {
           <div>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-gray-900">KOL管理</h2>
+              <button
+                onClick={() => setShowKOLForm(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                添加KOL
+              </button>
             </div>
 
-            <div className="bg-white shadow rounded-lg p-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">上传KOL数据</h3>
-              <div className="border-2 border-dashed border-gray-300 rounded-md p-8 text-center">
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleFileChange}
-                  className="mb-4"
-                />
-                {selectedFile && (
-                  <div className="mt-4">
-                    <p className="text-sm text-gray-500">已选择文件: {selectedFile.name}</p>
+            {showKOLForm && (
+              <div className="bg-white shadow rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">添加KOL</h3>
+                <form>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">KOL名称</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">粉丝数</label>
+                      <input
+                        type="number"
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                      />
+                    </div>
+                  </div>
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">上传Excel文件</label>
+                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                      <div className="space-y-1 text-center">
+                        <input
+                          id="file-upload"
+                          name="file-upload"
+                          type="file"
+                          className="sr-only"
+                          onChange={handleFileChange}
+                        />
+                        <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none">
+                          <span>上传文件</span>
+                          <input id="file-upload" name="file-upload" type="file" className="sr-only" />
+                        </label>
+                        <p className="text-xs text-gray-500">
+                          Excel文件 (.xlsx)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex space-x-4">
                     <button
+                      type="button"
                       onClick={handleFileUpload}
-                      className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                     >
-                      上传并解析
+                      保存
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowKOLForm(false)}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                    >
+                      取消
                     </button>
                   </div>
-                )}
+                </form>
               </div>
-            </div>
+            )}
 
             <div className="bg-white shadow rounded-lg p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">KOL列表</h3>
@@ -1011,28 +1208,29 @@ function App() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">头像</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">KOL名称</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">粉丝数</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">视频数</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {kols.map(kol => (
                       <tr key={kol.id}>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <img 
-                            src={kol.avatar} 
-                            alt={kol.name} 
-                            className="w-10 h-10 rounded-full"
-                          />
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <img className="h-10 w-10 rounded-full" src={kol.avatar} alt={kol.name} />
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">{kol.name}</div>
+                              <div className="text-sm text-gray-500">ID: {kol.id}</div>
+                            </div>
+                          </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{kol.name}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{kol.followerCount.toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{kol.id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {kol.campaigns.reduce((total, campaign) => total + campaign.videos.length, 0)}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button className="text-blue-600 hover:text-blue-900 mr-3">编辑</button>
+                          <button className="text-red-600 hover:text-red-900">删除</button>
                         </td>
                       </tr>
                     ))}
