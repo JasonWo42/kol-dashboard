@@ -242,7 +242,8 @@ function App() {
   const [campaignFormData, setCampaignFormData] = useState({
     name: '',
     productName: '',
-    totalBudget: '',
+    officialBudget: '',
+    otherBudget: '',
     startDate: '',
     endDate: '',
     kolCount: '',
@@ -311,11 +312,14 @@ function App() {
       return sum + parseFloat(platform.cost || 0)
     }, 0)
     
+    // è®¡ç®—æ€»é¢„ç®—
+    const totalBudget = parseFloat(campaignFormData.officialBudget || 0) + parseFloat(campaignFormData.otherBudget || 0);
+    
     const newCampaign = {
       id: editingCampaign ? editingCampaign.id : `campaign${campaigns.length + 1}`,
       name: campaignFormData.name,
       productName: campaignFormData.productName,
-      totalBudget: parseFloat(campaignFormData.totalBudget),
+      totalBudget: totalBudget,
       startDate: campaignFormData.startDate,
       endDate: campaignFormData.endDate,
       kolCount: parseInt(campaignFormData.kolCount),
@@ -352,13 +356,32 @@ function App() {
     setShowCampaignForm(false)
     setEditingCampaign(null)
     setCampaignFormData({
-      name: '',
-      productName: '',
-      totalBudget: '',
-      startDate: '',
-      endDate: '',
-      kolCount: ''
-    })
+    name: '',
+    productName: '',
+    officialBudget: '',
+    otherBudget: '',
+    startDate: '',
+    endDate: '',
+    kolCount: '',
+    platforms: {
+      xiaohongshu: {
+        views: '',
+        cost: ''
+      },
+      douyin: {
+        views: '',
+        cost: ''
+      },
+      bilibili: {
+        views: '',
+        cost: ''
+      },
+      other: {
+        views: '',
+        cost: ''
+      }
+    }
+  })
   }
 
   const handleEditCampaign = (campaign) => {
@@ -366,7 +389,8 @@ function App() {
     setCampaignFormData({
       name: campaign.name,
       productName: campaign.productName,
-      totalBudget: campaign.totalBudget.toString(),
+      officialBudget: campaign.totalBudget.toString(),
+      otherBudget: '0',
       startDate: campaign.startDate,
       endDate: campaign.endDate,
       kolCount: campaign.kolCount.toString(),
@@ -424,12 +448,13 @@ function App() {
               <h1 className="text-xl font-bold text-gray-900">KOL数据面板</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <button
+              {/* Dashboard 暂时隐藏 */}
+              {/* <button
                 onClick={() => setActiveTab('dashboard')}
                 className={`px-4 py-2 rounded-md ${activeTab === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
               >
                 Dashboard
-              </button>
+              </button> */}
               <button
                 onClick={() => setActiveTab('campaign')}
                 className={`px-4 py-2 rounded-md ${activeTab === 'campaign' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
@@ -461,8 +486,8 @@ function App() {
 
       {/* 主内容区 */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Dashboard */}
-        {activeTab === 'dashboard' && (
+        {/* Dashboard 暂时隐藏 */}
+        {/* {activeTab === 'dashboard' && (
           <div>
             <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
@@ -511,7 +536,7 @@ function App() {
               </div>
             </div>
           </div>
-        )}
+        )} */}
 
         {/* Campaign分析 */}
         {activeTab === 'campaign' && (
@@ -748,16 +773,39 @@ function App() {
               <h2 className="text-xl font-bold text-gray-900">Campaign管理</h2>
               <button
                 onClick={() => {
+                  // 先设置编辑状态和表单数据
                   setEditingCampaign(null)
                   setCampaignFormData({
                     name: '',
                     productName: '',
-                    totalBudget: '',
+                    officialBudget: '',
+                    otherBudget: '',
                     startDate: '',
                     endDate: '',
-                    kolCount: ''
+                    kolCount: '',
+                    platforms: {
+                      xiaohongshu: {
+                        views: '0',
+                        cost: '0'
+                      },
+                      douyin: {
+                        views: '0',
+                        cost: '0'
+                      },
+                      bilibili: {
+                        views: '0',
+                        cost: '0'
+                      },
+                      other: {
+                        views: '0',
+                        cost: '0'
+                      }
+                    }
                   })
-                  setShowCampaignForm(true)
+                  // 确保状态更新完成后再显示表单
+                  setTimeout(() => {
+                    setShowCampaignForm(true)
+                  }, 100)
                 }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
@@ -793,11 +841,22 @@ function App() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">总预算</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">官方预算</label>
                       <input
                         type="number"
-                        name="totalBudget"
-                        value={campaignFormData.totalBudget}
+                        name="officialBudget"
+                        value={campaignFormData.officialBudget}
+                        onChange={handleCampaignFormChange}
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">其他预算</label>
+                      <input
+                        type="number"
+                        name="otherBudget"
+                        value={campaignFormData.otherBudget}
                         onChange={handleCampaignFormChange}
                         className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
                         required
@@ -1017,41 +1076,111 @@ function App() {
         {/* KOL表现 */}
         {activeTab === 'kol' && (
           <div>
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <label className="block text-sm font-medium text-gray-700">选择KOL</label>
-              </div>
-              <select
-                value={selectedKOL.id}
-                onChange={(e) => setSelectedKOL(kols.find(k => k.id === e.target.value))}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md mb-4"
-              >
-                {kols.map(kol => (
-                  <option key={kol.id} value={kol.id}>
-                    {kol.name} - {kol.followerCount.toLocaleString()} 粉丝
-                  </option>
-                ))}
-              </select>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">筛选Campaign</label>
-                <select
-                  value={selectedCampaignFilter}
-                  onChange={(e) => setSelectedCampaignFilter(e.target.value)}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
-                >
-                  <option value="all">全部Campaign</option>
-                  {selectedKOL.campaigns.map(campaign => (
-                    <option key={campaign.campaignId} value={campaign.campaignId}>
-                      {campaign.campaignName}
-                    </option>
-                  ))}
-                </select>
+            <div className="bg-white shadow rounded-lg p-6 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">选择过滤条件</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* 财政年度下拉选择 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">财政年度</label>
+                  <select
+                    value={fyDisplayText}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFyDisplayText(value);
+                      if (value === 'Select all') {
+                        setSelectedFYs(['FY25', 'FY26', 'FY27']);
+                      } else if (value === '请选择') {
+                        setSelectedFYs([]);
+                      } else {
+                        setSelectedFYs([value]);
+                      }
+                    }}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                  >
+                    <option value="请选择">请选择</option>
+                    <option value="Select all">Select all</option>
+                    {['FY25', 'FY26', 'FY27'].map(fy => (
+                      <option key={fy} value={fy}>
+                        {fy}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* 产品下拉选择 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">产品</label>
+                  <select
+                    value={productDisplayText}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setProductDisplayText(value);
+                      if (value === 'Select all') {
+                        const allProducts = [...new Set(campaigns.filter(c => selectedFYs.length > 0 ? selectedFYs.includes(c.fy) : true).map(c => c.productName))];
+                        setSelectedProducts(allProducts);
+                      } else if (value === '请选择') {
+                        setSelectedProducts([]);
+                      } else {
+                        setSelectedProducts([value]);
+                      }
+                    }}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                  >
+                    <option value="请选择">请选择</option>
+                    <option value="Select all">Select all</option>
+                    {[...new Set(campaigns.filter(c => selectedFYs.length > 0 ? selectedFYs.includes(c.fy) : true).map(c => c.productName))].map(product => (
+                      <option key={product} value={product}>
+                        {product}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Campaign选择器 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Campaign</label>
+                  <select
+                    value={selectedCampaignFilter}
+                    onChange={(e) => setSelectedCampaignFilter(e.target.value)}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                  >
+                    <option value="all">全部Campaign</option>
+                    {(() => {
+                      const filteredCampaigns = campaigns.filter(c => {
+                        const fyMatch = selectedFYs.length === 0 || selectedFYs.includes(c.fy);
+                        const productMatch = selectedProducts.length === 0 || selectedProducts.includes(c.productName);
+                        return fyMatch && productMatch;
+                      });
+                      return filteredCampaigns.map(campaign => (
+                        <option key={campaign.id} value={campaign.id}>
+                          {campaign.name} - {campaign.productName}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+                
+                {/* 选择KOL */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">选择KOL</label>
+                  <select
+                    value={selectedKOL.id}
+                    onChange={(e) => setSelectedKOL(kols.find(k => k.id === e.target.value))}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                  >
+                    {kols.map(kol => (
+                      <option key={kol.id} value={kol.id}>
+                        {kol.name} - {kol.followerCount.toLocaleString()} 粉丝
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
             {/* KOL基本信息 */}
             <div className="bg-white shadow rounded-lg p-6 mb-6">
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-4 mb-6">
                 <img 
                   src={selectedKOL.avatar} 
                   alt={selectedKOL.name} 
@@ -1063,6 +1192,44 @@ function App() {
                   <p className="text-gray-600">ID: {selectedKOL.id}</p>
                 </div>
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500">总视频数</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {selectedKOL.campaigns.reduce((total, campaign) => total + campaign.videos.length, 0)}
+                  </p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500">总播放量</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {selectedKOL.campaigns.reduce((total, campaign) => {
+                      return total + campaign.videos.reduce((videoTotal, video) => videoTotal + video.views, 0);
+                    }, 0).toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500">总互动量</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {selectedKOL.campaigns.reduce((total, campaign) => {
+                      return total + campaign.videos.reduce((videoTotal, video) => videoTotal + video.interactions, 0);
+                    }, 0).toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500">综合互动率</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {(() => {
+                      const totalViews = selectedKOL.campaigns.reduce((total, campaign) => {
+                        return total + campaign.videos.reduce((videoTotal, video) => videoTotal + video.views, 0);
+                      }, 0);
+                      const totalInteractions = selectedKOL.campaigns.reduce((total, campaign) => {
+                        return total + campaign.videos.reduce((videoTotal, video) => videoTotal + video.interactions, 0);
+                      }, 0);
+                      return totalViews > 0 ? ((totalInteractions / totalViews) * 100).toFixed(2) : '0.00';
+                    })()}%
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* KOL项目表现 */}
@@ -1072,11 +1239,10 @@ function App() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">产品</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Campaign</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">产品</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">视频标题</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">平台</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">视频名字</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">视频链接</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">发布时间</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">播放量</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">互动量</th>
@@ -1090,10 +1256,11 @@ function App() {
                       .flatMap(campaign => 
                         campaign.videos.map(video => (
                           <tr key={video.videoId}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{campaign.productName}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{campaign.campaignName}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{campaign.productName}</td>
+                            <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">{video.name}</td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
+                              <a href={video.videoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center">
                                 <img 
                                   src={video.platformIcon} 
                                   alt={video.platform} 
@@ -1103,20 +1270,12 @@ function App() {
                                   {video.platform === 'xiaohongshu' ? '小红书' : 
                                    video.platform === 'douyin' ? '抖音' : 'B站'}
                                 </span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">{video.name}</td>
-                            <td className="px-6 py-4 text-sm text-gray-900">
-                              <a href={video.videoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                                查看视频
                               </a>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{video.publishDate}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{video.views.toLocaleString()}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{video.interactions.toLocaleString()}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {(video.interactions / video.views * 100).toFixed(2)}%
-                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{(video.interactions / video.views * 100).toFixed(2)}%</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">¥{video.cost.toLocaleString()}</td>
                           </tr>
                         ))
