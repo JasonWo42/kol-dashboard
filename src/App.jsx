@@ -1,5 +1,57 @@
 import React, { useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis } from 'recharts'
+
+// 财年总览模拟数据
+const fyOverviewData = {
+  FY23: {
+    totalKOLCount: 45,
+    totalVideoCount: 128,
+    totalViews: 8500000,
+    totalCost: 425000,
+    platforms: {
+      xiaohongshu: { views: 3200000, cost: 140000 },
+      douyin: { views: 3800000, cost: 200000 },
+      bilibili: { views: 1200000, cost: 65000 },
+      other: { views: 300000, cost: 20000 }
+    }
+  },
+  FY24: {
+    totalKOLCount: 62,
+    totalVideoCount: 186,
+    totalViews: 12300000,
+    totalCost: 580000,
+    platforms: {
+      xiaohongshu: { views: 4800000, cost: 195000 },
+      douyin: { views: 5500000, cost: 280000 },
+      bilibili: { views: 1600000, cost: 85000 },
+      other: { views: 400000, cost: 20000 }
+    }
+  },
+  FY25: {
+    totalKOLCount: 78,
+    totalVideoCount: 245,
+    totalViews: 16800000,
+    totalCost: 720000,
+    platforms: {
+      xiaohongshu: { views: 6500000, cost: 250000 },
+      douyin: { views: 7500000, cost: 350000 },
+      bilibili: { views: 2200000, cost: 100000 },
+      other: { views: 600000, cost: 20000 }
+    }
+  },
+  FY26: {
+    totalKOLCount: 95,
+    totalVideoCount: 312,
+    totalViews: 22500000,
+    totalCost: 890000,
+    platforms: {
+      xiaohongshu: { views: 8500000, cost: 310000 },
+      douyin: { views: 10200000, cost: 430000 },
+      bilibili: { views: 3000000, cost: 120000 },
+      other: { views: 800000, cost: 30000 }
+    }
+  }
+}
 
 // 模拟数据
 const mockCampaigns = [
@@ -235,13 +287,19 @@ function App() {
   const [fyDisplayText, setFyDisplayText] = useState('请选择') // 默认显示"请选择"
   const [productDisplayText, setProductDisplayText] = useState('请选择')
   
+  // 财年总览状态
+  const [selectedFY, setSelectedFY] = useState('FY26')
+  
+  // 散点图平台选择状态
+  const [selectedScatterPlatform, setSelectedScatterPlatform] = useState('xiaohongshu')
+  
   // Campaign管理状态
   const [campaigns, setCampaigns] = useState(mockCampaigns)
   const [showCampaignForm, setShowCampaignForm] = useState(false)
   const [editingCampaign, setEditingCampaign] = useState(null)
   const [campaignFormData, setCampaignFormData] = useState({
     name: '',
-    productName: '',
+    productName: [],
     officialBudget: '',
     otherBudget: '',
     startDate: '',
@@ -267,6 +325,9 @@ function App() {
       }
     }
   })
+  
+  // 产品选项
+  const productOptions = ['碧海黑帆', '刺客信条：影']
   
   // KOL管理状态
   const [kols, setKols] = useState(mockKOLs)
@@ -296,6 +357,36 @@ function App() {
       setCampaignFormData(prev => ({
         ...prev,
         [name]: value
+      }))
+    }
+  }
+  
+  // 处理产品多选
+  const handleProductToggle = (product) => {
+    setCampaignFormData(prev => {
+      const newProducts = prev.productName.includes(product)
+        ? prev.productName.filter(p => p !== product)
+        : [...prev.productName, product]
+      return {
+        ...prev,
+        productName: newProducts
+      }
+    })
+  }
+  
+  // 处理全选产品
+  const handleSelectAllProducts = () => {
+    if (campaignFormData.productName.length === productOptions.length) {
+      // 如果已全选，则取消全选
+      setCampaignFormData(prev => ({
+        ...prev,
+        productName: []
+      }))
+    } else {
+      // 否则全选
+      setCampaignFormData(prev => ({
+        ...prev,
+        productName: [...productOptions]
       }))
     }
   }
@@ -357,7 +448,7 @@ function App() {
     setEditingCampaign(null)
     setCampaignFormData({
     name: '',
-    productName: '',
+    productName: [],
     officialBudget: '',
     otherBudget: '',
     startDate: '',
@@ -388,7 +479,7 @@ function App() {
     setEditingCampaign(campaign)
     setCampaignFormData({
       name: campaign.name,
-      productName: campaign.productName,
+      productName: Array.isArray(campaign.productName) ? campaign.productName : [campaign.productName],
       officialBudget: campaign.totalBudget.toString(),
       otherBudget: '0',
       startDate: campaign.startDate,
@@ -456,6 +547,12 @@ function App() {
                 Dashboard
               </button> */}
               <button
+                onClick={() => setActiveTab('fy-overview')}
+                className={`px-4 py-2 rounded-md ${activeTab === 'fy-overview' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+              >
+                财年总览
+              </button>
+              <button
                 onClick={() => setActiveTab('campaign')}
                 className={`px-4 py-2 rounded-md ${activeTab === 'campaign' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
               >
@@ -486,6 +583,151 @@ function App() {
 
       {/* 主内容区 */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* 财年总览 */}
+        {activeTab === 'fy-overview' && (
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">财年总览</h1>
+            
+            {/* FY选择器 */}
+            <div className="bg-white shadow rounded-lg p-6 mb-6">
+              <div className="flex items-center space-x-4">
+                <label className="text-sm font-medium text-gray-700">选择财年：</label>
+                <select
+                  value={selectedFY}
+                  onChange={(e) => setSelectedFY(e.target.value)}
+                  className="mt-1 block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                >
+                  <option value="FY23">FY23</option>
+                  <option value="FY24">FY24</option>
+                  <option value="FY25">FY25</option>
+                  <option value="FY26">FY26</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 总览卡片 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+              <div className="bg-white shadow rounded-lg p-6">
+                <p className="text-sm text-gray-500">总KOL数量</p>
+                <p className="text-2xl font-bold text-gray-900">{fyOverviewData[selectedFY].totalKOLCount}</p>
+              </div>
+              <div className="bg-white shadow rounded-lg p-6">
+                <p className="text-sm text-gray-500">总视频数量</p>
+                <p className="text-2xl font-bold text-gray-900">{fyOverviewData[selectedFY].totalVideoCount}</p>
+              </div>
+              <div className="bg-white shadow rounded-lg p-6">
+                <p className="text-sm text-gray-500">总播放数量</p>
+                <p className="text-2xl font-bold text-gray-900">{fyOverviewData[selectedFY].totalViews.toLocaleString()}</p>
+              </div>
+              <div className="bg-white shadow rounded-lg p-6">
+                <p className="text-sm text-gray-500">综合CPV</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  ¥{(fyOverviewData[selectedFY].totalCost / fyOverviewData[selectedFY].totalViews).toFixed(4)}
+                </p>
+              </div>
+            </div>
+
+            {/* 总KOL花费 */}
+            <div className="bg-white shadow rounded-lg p-6 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">总KOL花费</h2>
+              <div className="bg-yellow-50 p-6 rounded-lg">
+                <p className="text-sm text-gray-500">总花费</p>
+                <p className="text-3xl font-bold text-gray-900">¥{fyOverviewData[selectedFY].totalCost.toLocaleString()}</p>
+              </div>
+            </div>
+
+            {/* 分平台数据 */}
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">分平台数据</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* 小红书 */}
+                <div className="bg-red-50 p-4 rounded-lg">
+                  <p className="text-sm font-medium text-gray-700 mb-2">小红书</p>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-xs text-gray-500">播放量</p>
+                      <p className="text-lg font-bold text-gray-900">{fyOverviewData[selectedFY].platforms.xiaohongshu.views.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">花费</p>
+                      <p className="text-lg font-bold text-gray-900">¥{fyOverviewData[selectedFY].platforms.xiaohongshu.cost.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">CPV</p>
+                      <p className="text-lg font-bold text-gray-900">
+                        ¥{(fyOverviewData[selectedFY].platforms.xiaohongshu.cost / fyOverviewData[selectedFY].platforms.xiaohongshu.views).toFixed(4)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 抖音 */}
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-sm font-medium text-gray-700 mb-2">抖音</p>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-xs text-gray-500">播放量</p>
+                      <p className="text-lg font-bold text-gray-900">{fyOverviewData[selectedFY].platforms.douyin.views.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">花费</p>
+                      <p className="text-lg font-bold text-gray-900">¥{fyOverviewData[selectedFY].platforms.douyin.cost.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">CPV</p>
+                      <p className="text-lg font-bold text-gray-900">
+                        ¥{(fyOverviewData[selectedFY].platforms.douyin.cost / fyOverviewData[selectedFY].platforms.douyin.views).toFixed(4)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* B站 */}
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <p className="text-sm font-medium text-gray-700 mb-2">B站</p>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-xs text-gray-500">播放量</p>
+                      <p className="text-lg font-bold text-gray-900">{fyOverviewData[selectedFY].platforms.bilibili.views.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">花费</p>
+                      <p className="text-lg font-bold text-gray-900">¥{fyOverviewData[selectedFY].platforms.bilibili.cost.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">CPV</p>
+                      <p className="text-lg font-bold text-gray-900">
+                        ¥{(fyOverviewData[selectedFY].platforms.bilibili.cost / fyOverviewData[selectedFY].platforms.bilibili.views).toFixed(4)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 其他平台 */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm font-medium text-gray-700 mb-2">其他平台</p>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-xs text-gray-500">播放量</p>
+                      <p className="text-lg font-bold text-gray-900">{fyOverviewData[selectedFY].platforms.other.views.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">花费</p>
+                      <p className="text-lg font-bold text-gray-900">¥{fyOverviewData[selectedFY].platforms.other.cost.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">CPV</p>
+                      <p className="text-lg font-bold text-gray-900">
+                        ¥{(fyOverviewData[selectedFY].platforms.other.cost / fyOverviewData[selectedFY].platforms.other.views).toFixed(4)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Dashboard 暂时隐藏 */}
         {/* {activeTab === 'dashboard' && (
           <div>
@@ -706,52 +948,110 @@ function App() {
                   </div>
                 </div>
 
-                <div className="bg-white shadow rounded-lg p-6 mb-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">选择对比Campaign</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {campaigns.map(campaign => (
-                      <div key={campaign.id} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id={`campaign-${campaign.id}`}
-                          checked={selectedCampaignsForComparison.includes(campaign.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedCampaignsForComparison([...selectedCampaignsForComparison, campaign.id])
-                            } else {
-                              setSelectedCampaignsForComparison(selectedCampaignsForComparison.filter(id => id !== campaign.id))
-                            }
-                          }}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor={`campaign-${campaign.id}`} className="ml-2 block text-sm text-gray-900">
-                          {campaign.name} - {campaign.productName}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
+                {/* 视频表现散点图 */}
                 <div className="bg-white shadow rounded-lg p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Campaign表现对比</h2>
-                  <div className="h-80">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-semibold text-gray-900">视频表现分析（播放量 vs 互动量）</h2>
+                    <div className="flex items-center space-x-2">
+                      <label className="text-sm font-medium text-gray-700">平台：</label>
+                      <select
+                        value={selectedScatterPlatform}
+                        onChange={(e) => setSelectedScatterPlatform(e.target.value)}
+                        className="pl-3 pr-8 py-1 text-sm border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                      >
+                        <option value="xiaohongshu">小红书</option>
+                        <option value="douyin">抖音</option>
+                        <option value="bilibili">B站</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="h-96">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={selectedCampaignsForComparison.length > 0 ? campaigns.filter(campaign => selectedCampaignsForComparison.includes(campaign.id)) : []}
-                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                      <ScatterChart
+                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
+                        <XAxis 
+                          type="number" 
+                          dataKey="views" 
+                          name="播放量" 
+                          tickFormatter={(value) => `${(value/1000).toFixed(0)}k`}
+                          label={{ value: '播放量', position: 'bottom', offset: 40 }}
+                        />
+                        <YAxis 
+                          type="number" 
+                          dataKey="interactions" 
+                          name="互动量"
+                          tickFormatter={(value) => `${(value/1000).toFixed(1)}k`}
+                          label={{ value: '互动量', angle: -90, position: 'insideLeft' }}
+                        />
+                        <ZAxis type="number" range={[50, 400]} dataKey="cost" name="花费" />
+                        <Tooltip 
+                          cursor={{ strokeDasharray: '3 3' }}
+                          formatter={(value, name) => {
+                            if (name === '播放量') return value.toLocaleString();
+                            if (name === '互动量') return value.toLocaleString();
+                            if (name === '花费') return `¥${value.toLocaleString()}`;
+                            return value;
+                          }}
+                        />
                         <Legend />
-                        <Bar dataKey="platforms.xiaohongshu.views" name="小红书播放量" stackId="a" fill="#ff6b6b" />
-                        <Bar dataKey="platforms.douyin.views" name="抖音播放量" stackId="a" fill="#4ecdc4" />
-                        <Bar dataKey="platforms.bilibili.views" name="B站播放量" stackId="a" fill="#45b7d1" />
-                        <Bar dataKey="platforms.other.views" name="其他平台播放量" stackId="a" fill="#999999" />
-                        <Bar dataKey="totalInteractions" name="互动量" fill="#82ca9d" />
-                      </BarChart>
+                        {selectedScatterPlatform === 'xiaohongshu' && (
+                          <Scatter 
+                            name="小红书" 
+                            data={kols.flatMap(kol => 
+                              kol.campaigns
+                                .filter(c => c.campaignId === selectedCampaign.id)
+                                .flatMap(c => c.videos.filter(v => v.platform === 'xiaohongshu'))
+                                .map(v => ({
+                                  views: v.views,
+                                  interactions: v.interactions,
+                                  cost: v.cost,
+                                  name: v.name
+                                }))
+                            )}
+                            fill="#ff6b6b"
+                          />
+                        )}
+                        {selectedScatterPlatform === 'douyin' && (
+                          <Scatter 
+                            name="抖音" 
+                            data={kols.flatMap(kol => 
+                              kol.campaigns
+                                .filter(c => c.campaignId === selectedCampaign.id)
+                                .flatMap(c => c.videos.filter(v => v.platform === 'douyin'))
+                                .map(v => ({
+                                  views: v.views,
+                                  interactions: v.interactions,
+                                  cost: v.cost,
+                                  name: v.name
+                                }))
+                            )}
+                            fill="#4ecdc4"
+                          />
+                        )}
+                        {selectedScatterPlatform === 'bilibili' && (
+                          <Scatter 
+                            name="B站" 
+                            data={kols.flatMap(kol => 
+                              kol.campaigns
+                                .filter(c => c.campaignId === selectedCampaign.id)
+                                .flatMap(c => c.videos.filter(v => v.platform === 'bilibili'))
+                                .map(v => ({
+                                  views: v.views,
+                                  interactions: v.interactions,
+                                  cost: v.cost,
+                                  name: v.name
+                                }))
+                            )}
+                            fill="#45b7d1"
+                          />
+                        )}
+                      </ScatterChart>
                     </ResponsiveContainer>
+                  </div>
+                  <div className="mt-4 text-sm text-gray-500">
+                    <p>💡 提示：点的大小代表视频花费，越大表示花费越高</p>
                   </div>
                 </div>
               </>
@@ -820,14 +1120,50 @@ function App() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">产品名称</label>
-                      <input
-                        type="text"
-                        name="productName"
-                        value={campaignFormData.productName}
-                        onChange={handleCampaignFormChange}
-                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
-                        required
-                      />
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setShowProductDropdown(!showProductDropdown)}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md bg-white text-left"
+                        >
+                          {campaignFormData.productName.length === 0 
+                            ? '请选择产品' 
+                            : campaignFormData.productName.join(', ')}
+                          <span className="absolute inset-y-0 right-0 flex items-center pr-2">
+                            <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </span>
+                        </button>
+                        
+                        {showProductDropdown && (
+                          <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md border border-gray-300">
+                            <div className="p-2">
+                              <label className="flex items-center p-2 hover:bg-gray-100 rounded cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={campaignFormData.productName.length === productOptions.length}
+                                  onChange={handleSelectAllProducts}
+                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                />
+                                <span className="ml-2 text-sm font-medium text-gray-700">Select all</span>
+                              </label>
+                              <div className="border-t border-gray-200 my-1"></div>
+                              {productOptions.map(product => (
+                                <label key={product} className="flex items-center p-2 hover:bg-gray-100 rounded cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={campaignFormData.productName.includes(product)}
+                                    onChange={() => handleProductToggle(product)}
+                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                  />
+                                  <span className="ml-2 text-sm text-gray-900">{product}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Campaign名称</label>
@@ -1045,7 +1381,11 @@ function App() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {campaigns.map(campaign => (
                       <tr key={campaign.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{campaign.productName}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {Array.isArray(campaign.productName) 
+                            ? campaign.productName.join(', ') 
+                            : campaign.productName}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{campaign.name}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">¥{campaign.totalBudget.toLocaleString()}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{campaign.kolCount}</td>
