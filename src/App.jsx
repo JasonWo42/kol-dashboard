@@ -559,22 +559,10 @@ function App() {
                 Campaign分析
               </button>
               <button
-                onClick={() => setActiveTab('campaign-manage')}
-                className={`px-4 py-2 rounded-md ${activeTab === 'campaign-manage' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-              >
-                Campaign管理
-              </button>
-              <button
                 onClick={() => setActiveTab('kol')}
                 className={`px-4 py-2 rounded-md ${activeTab === 'kol' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
               >
                 KOL表现
-              </button>
-              <button
-                onClick={() => setActiveTab('kol-manage')}
-                className={`px-4 py-2 rounded-md ${activeTab === 'kol-manage' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-              >
-                KOL管理
               </button>
             </div>
           </div>
@@ -783,6 +771,14 @@ function App() {
         {/* Campaign分析 */}
         {activeTab === 'campaign' && (
           <div>
+            <div className="mb-6">
+              <button
+                onClick={() => setActiveTab('campaign-manage')}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Campaign管理
+              </button>
+            </div>
             <div className="bg-white shadow rounded-lg p-6 mb-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">选择过滤条件</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1056,11 +1052,66 @@ function App() {
                 </div>
               </>
             ) : (
-              <div className="bg-white shadow rounded-lg p-6 mb-6">
-                <div className="flex flex-col items-center justify-center py-12">
-                  <p className="text-gray-500 text-lg">请选择一个Campaign以查看详细信息</p>
-                  <p className="text-gray-400 mt-2">您需要先在上方选择框中选择一个Campaign</p>
+              <div className="bg-white shadow rounded-lg p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Campaign列表</h2>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Campaign名称</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">产品</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">财年</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">KOL数量</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">总播放量</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">总预算</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {(() => {
+                        const filteredCampaigns = campaigns.filter(c => {
+                          const fyMatch = selectedFYs.length === 0 || selectedFYs.includes(c.fy);
+                          const productMatch = selectedProducts.length === 0 || selectedProducts.includes(c.productName);
+                          return fyMatch && productMatch;
+                        });
+                        return filteredCampaigns.map(campaign => (
+                          <tr key={campaign.id}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{campaign.name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{campaign.productName}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{campaign.fy || 'N/A'}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{campaign.kolCount}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{campaign.totalViews.toLocaleString()}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">¥{campaign.totalBudget.toLocaleString()}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <button
+                                onClick={() => {
+                                  setSelectedCampaignFiltered(campaign.id);
+                                  setSelectedCampaign(campaign);
+                                }}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                查看详情
+                              </button>
+                            </td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
                 </div>
+                {(() => {
+                  const filteredCampaigns = campaigns.filter(c => {
+                    const fyMatch = selectedFYs.length === 0 || selectedFYs.includes(c.fy);
+                    const productMatch = selectedProducts.length === 0 || selectedProducts.includes(c.productName);
+                    return fyMatch && productMatch;
+                  });
+                  return filteredCampaigns.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <p className="text-gray-500 text-lg">没有找到符合条件的Campaign</p>
+                      <p className="text-gray-400 mt-2">请尝试调整过滤条件</p>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -1417,7 +1468,15 @@ function App() {
         {activeTab === 'kol' && (
           <div>
             <div className="bg-white shadow rounded-lg p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">选择过滤条件</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">选择过滤条件</h2>
+                <button
+                  onClick={() => setActiveTab('kol-manage')}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  KOL管理
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* 财政年度下拉选择 */}
                 <div>
