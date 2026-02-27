@@ -389,6 +389,10 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null)
   const [filePreview, setFilePreview] = useState(null)
 
+  const [kolSelectedFY, setKolSelectedFY] = useState('')
+  const [kolSelectedProduct, setKolSelectedProduct] = useState('')
+  const [kolSelectedPlatform, setKolSelectedPlatform] = useState('')
+
   const handleCampaignFormChange = (e) => {
     const { name, value } = e.target
     
@@ -645,6 +649,46 @@ function App() {
   const availableFYs = ['FY25', 'FY26', 'FY27']
   const availableProducts = [...new Set(campaigns.map(c => c.productName))]
   const availableCampaigns = campaigns
+
+  const getKolAvailableFYs = () => {
+    if (!selectedKolForDisplay) return []
+    return [...new Set(selectedKolForDisplay.campaigns.map(c => c.fy))]
+  }
+
+  const getKolAvailableProducts = () => {
+    if (!selectedKolForDisplay) return []
+    return [...new Set(selectedKolForDisplay.campaigns.map(c => c.productName))]
+  }
+
+  const getKolAvailablePlatforms = () => {
+    if (!selectedKolForDisplay) return []
+    const platforms = new Set()
+    selectedKolForDisplay.campaigns.forEach(c => {
+      c.videos.forEach(v => platforms.add(v.platform))
+    })
+    return [...platforms]
+  }
+
+  const getFilteredKolVideos = () => {
+    if (!selectedKolForDisplay) return []
+    let allVideos = []
+    selectedKolForDisplay.campaigns.forEach(campaign => {
+      campaign.videos.forEach(video => {
+        allVideos.push({
+          ...video,
+          campaignName: campaign.campaignName,
+          productName: campaign.productName,
+          fy: campaign.fy
+        })
+      })
+    })
+    return allVideos.filter(video => {
+      const fyMatch = !kolSelectedFY || video.fy === kolSelectedFY
+      const productMatch = !kolSelectedProduct || video.productName === kolSelectedProduct
+      const platformMatch = !kolSelectedPlatform || video.platform === kolSelectedPlatform
+      return fyMatch && productMatch && platformMatch
+    })
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1223,7 +1267,7 @@ function App() {
             {selectedKolForDisplay && (
               <>
                 <div className="bg-white shadow rounded-lg p-6 mb-6">
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between mb-6">
                     <div className="flex items-center space-x-6">
                       <img
                         src={selectedKolForDisplay.avatar}
@@ -1259,38 +1303,99 @@ function App() {
                       <span>添加视频</span>
                     </button>
                   </div>
-                </div>
 
-                <div className="bg-white shadow rounded-lg p-6 mb-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">KOL数据概览</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="bg-gray-50 p-4 rounded-lg text-center">
-                      <p className="text-sm text-gray-500 mb-1">总视频数</p>
-                      <p className="text-3xl font-bold text-gray-900">
-                        {selectedKolForDisplay.campaigns.reduce((sum, c) => sum + c.videos.length, 0)}
-                      </p>
+                  <div className="border-t pt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-semibold text-gray-900">KOL数据概览</h2>
+                      <button
+                        onClick={() => {
+                          setKolSelectedFY('')
+                          setKolSelectedProduct('')
+                          setKolSelectedPlatform('')
+                        }}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                      >
+                        重置筛选
+                      </button>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded-lg text-center">
-                      <p className="text-sm text-gray-500 mb-1">总播放量</p>
-                      <p className="text-3xl font-bold text-gray-900">
-                        {selectedKolForDisplay.campaigns.reduce((sum, c) => sum + c.videos.reduce((s, v) => s + v.views, 0), 0).toLocaleString()}
-                      </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">财年</label>
+                        <select
+                          value={kolSelectedFY}
+                          onChange={(e) => setKolSelectedFY(e.target.value)}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                        >
+                          <option value="">全部</option>
+                          {getKolAvailableFYs().map(fy => (
+                            <option key={fy} value={fy}>{fy}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">产品</label>
+                        <select
+                          value={kolSelectedProduct}
+                          onChange={(e) => setKolSelectedProduct(e.target.value)}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                        >
+                          <option value="">全部</option>
+                          {getKolAvailableProducts().map(product => (
+                            <option key={product} value={product}>{product}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">平台</label>
+                        <select
+                          value={kolSelectedPlatform}
+                          onChange={(e) => setKolSelectedPlatform(e.target.value)}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                        >
+                          <option value="">全部</option>
+                          {getKolAvailablePlatforms().map(platform => (
+                            <option key={platform} value={platform}>
+                              {platform === 'xiaohongshu' ? '小红书' : 
+                               platform === 'douyin' ? '抖音' : 'B站'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded-lg text-center">
-                      <p className="text-sm text-gray-500 mb-1">总互动量</p>
-                      <p className="text-3xl font-bold text-gray-900">
-                        {selectedKolForDisplay.campaigns.reduce((sum, c) => sum + c.videos.reduce((s, v) => s + v.interactions, 0), 0).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-lg text-center">
-                      <p className="text-sm text-gray-500 mb-1">综合互动率</p>
-                      <p className="text-3xl font-bold text-gray-900">
-                        {(() => {
-                          const totalViews = selectedKolForDisplay.campaigns.reduce((sum, c) => sum + c.videos.reduce((s, v) => s + v.views, 0), 0);
-                          const totalInteractions = selectedKolForDisplay.campaigns.reduce((sum, c) => sum + c.videos.reduce((s, v) => s + v.interactions, 0), 0);
-                          return totalViews > 0 ? `${((totalInteractions / totalViews) * 100).toFixed(2)}%` : '0%';
-                        })()}
-                      </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className="bg-gray-50 p-4 rounded-lg text-center">
+                        <p className="text-sm text-gray-500 mb-1">总视频数</p>
+                        <p className="text-3xl font-bold text-gray-900">
+                          {getFilteredKolVideos().length}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-lg text-center">
+                        <p className="text-sm text-gray-500 mb-1">总播放量</p>
+                        <p className="text-3xl font-bold text-gray-900">
+                          {getFilteredKolVideos().reduce((sum, v) => sum + v.views, 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-lg text-center">
+                        <p className="text-sm text-gray-500 mb-1">总互动量</p>
+                        <p className="text-3xl font-bold text-gray-900">
+                          {getFilteredKolVideos().reduce((sum, v) => sum + v.interactions, 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-lg text-center">
+                        <p className="text-sm text-gray-500 mb-1">综合互动率</p>
+                        <p className="text-3xl font-bold text-gray-900">
+                          {(() => {
+                            const filteredVideos = getFilteredKolVideos();
+                            const totalViews = filteredVideos.reduce((sum, v) => sum + v.views, 0);
+                            const totalInteractions = filteredVideos.reduce((sum, v) => sum + v.interactions, 0);
+                            return totalViews > 0 ? `${((totalInteractions / totalViews) * 100).toFixed(2)}%` : '0%';
+                          })()}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1312,44 +1417,42 @@ function App() {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {selectedKolForDisplay.campaigns.map(campaign => 
-                          campaign.videos.map(video => (
-                            <tr key={video.videoId}>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{campaign.campaignName}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">{campaign.productName}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <a href={video.videoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-900">
-                                  {video.name}
-                                </a>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center">
-                                  <img src={video.platformIcon} alt={video.platform} className="w-5 h-5 mr-2" />
-                                  <span className="text-sm text-gray-900">
-                                    {video.platform === 'xiaohongshu' ? '小红书' : 
-                                     video.platform === 'douyin' ? '抖音' : 'B站'}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">{video.publishDate}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">{video.views.toLocaleString()}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">{video.interactions.toLocaleString()}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">¥{video.cost.toLocaleString()}</div>
-                              </td>
-                            </tr>
-                          ))
-                        )}
+                        {getFilteredKolVideos().map(video => (
+                          <tr key={video.videoId}>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{video.campaignName}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{video.productName}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <a href={video.videoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-900">
+                                {video.name}
+                              </a>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <img src={video.platformIcon} alt={video.platform} className="w-5 h-5 mr-2" />
+                                <span className="text-sm text-gray-900">
+                                  {video.platform === 'xiaohongshu' ? '小红书' : 
+                                   video.platform === 'douyin' ? '抖音' : 'B站'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{video.publishDate}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{video.views.toLocaleString()}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{video.interactions.toLocaleString()}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">¥{video.cost.toLocaleString()}</div>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
