@@ -1,5 +1,8 @@
 import React, { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis } from 'recharts'
+import * as XLSX from 'xlsx'
+import axios from 'axios'
+import * as cheerio from 'cheerio'
 
 const fyOverviewData = {
   FY23: {
@@ -393,6 +396,259 @@ function App() {
   const [kolSelectedProduct, setKolSelectedProduct] = useState('')
   const [kolSelectedPlatform, setKolSelectedPlatform] = useState('')
 
+  const [uploadFY, setUploadFY] = useState('')
+  const [uploadProduct, setUploadProduct] = useState('')
+  const [uploadCampaign, setUploadCampaign] = useState('')
+  const [uploadFile, setUploadFile] = useState(null)
+  const [uploadStatus, setUploadStatus] = useState('')
+  const [processing, setProcessing] = useState(false)
+
+  const parseExcelFile = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target.result)
+          const workbook = XLSX.read(data, { type: 'array' })
+          const sheetName = workbook.SheetNames[0]
+          const worksheet = workbook.Sheets[sheetName]
+          const jsonData = XLSX.utils.sheet_to_json(worksheet)
+          resolve(jsonData)
+        } catch (error) {
+          reject(error)
+        }
+      }
+      reader.onerror = (error) => reject(error)
+      reader.readAsArrayBuffer(file)
+    })
+  }
+
+  const crawlVideoInfo = async (url) => {
+    try {
+      const response = await axios.get(url)
+      const $ = cheerio.default.load(response.data)
+      
+      // 尝试获取标题
+      let title = $('title').text().trim() || '未知标题'
+      
+      // 尝试获取发布日期（不同平台可能有不同的选择器）
+      let publishDate = new Date().toISOString().split('T')[0]
+      
+      // 这里需要根据不同平台的HTML结构调整选择器
+      // 示例：B站
+      const bilibiliDate = $('meta[property="article:published_time"]').attr('content')
+      if (bilibiliDate) {
+        publishDate = new Date(bilibiliDate).toISOString().split('T')[0]
+      }
+      
+      // 示例：小红书
+      const xhsDate = $('meta[name="publish_time"]').attr('content')
+      if (xhsDate) {
+        publishDate = new Date(xhsDate).toISOString().split('T')[0]
+      }
+      
+      // 示例：抖音
+      const douyinDate = $('meta[property="article:published_time"]').attr('content')
+      if (douyinDate) {
+        publishDate = new Date(douyinDate).toISOString().split('T')[0]
+      }
+      
+      return { title, publishDate }
+    } catch (error) {
+      console.error('爬取视频信息失败:', error)
+      return { title: '未知标题', publishDate: new Date().toISOString().split('T')[0] }
+    }
+  }
+
+  const processCost = (cost) => {
+    if (typeof cost === 'number') {
+      return cost
+    }
+    if (typeof cost === 'string') {
+      const lowerCost = cost.toLowerCase()
+      if (lowerCost === '分发' || lowerCost === '置换') {
+        return 0
+      }
+      const numericCost = parseFloat(cost.replace(/[^0-9.]/g, ''))
+      return isNaN(numericCost) ? 0 : numericCost
+    }
+    return 0
+  }
+
+  const processVideoPlatform = (url) => {
+    if (url.includes('bilibili')) return 'bilibili'
+    if (url.includes('xiaohongshu')) return 'xiaohongshu'
+    if (url.includes('douyin') || url.includes('tiktok')) return 'douyin'
+    return 'other'
+  }
+
+  const getPlatformIcon = (platform) => {
+    switch (platform) {
+      case 'xiaohongshu':
+        return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=xiaohongshu%20logo%20icon&image_size=square'
+      case 'douyin':
+        return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=douyin%20logo%20icon&image_size=square'
+      case 'bilibili':
+        return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=bilibili%20logo%20icon&image_size=square'
+      default:
+        return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=generic%20platform%20icon&image_size=square'
+    }
+  }
+
+  const handleFileUpload = async () => {
+    if (!uploadFY || !uploadProduct || !uploadCampaign || !uploadFile) {
+      alert('请填写所有筛选条件并选择文件');
+      return;
+    }
+
+    setProcessing(true)
+    setUploadStatus('正在处理文件...')
+
+    try {
+      // 解析Excel文件
+      const excelData = await parseExcelFile(uploadFile)
+      setUploadStatus(`解析完成，发现 ${excelData.length} 条数据`)
+
+      // 处理每条数据
+      const processedData = []
+      for (let i = 0; i < excelData.length; i++) {
+        const row = excelData[i]
+        setUploadStatus(`处理第 ${i + 1}/${excelData.length} 条数据`)
+
+        // 提取数据
+        const url = row['url'] || row['视频链接'] || row['链接'] || ''
+        const kolName = row['kol'] || row['KOL'] || row['达人'] || row['姓名'] || '未知KOL'
+        const views = parseInt(row['播放量'] || row['观看量'] || 0)
+        const interactions = parseInt(row['互动量'] || row['互动'] || 0)
+        const cost = processCost(row['价格'] || row['花费'] || row['费用'] || 0)
+
+        if (!url) {
+          console.warn('跳过缺少URL的行:', row)
+          continue
+        }
+
+        // 爬取视频信息
+        const { title, publishDate } = await crawlVideoInfo(url)
+        const platform = processVideoPlatform(url)
+        const platformIcon = getPlatformIcon(platform)
+
+        processedData.push({
+          url,
+          kolName,
+          views,
+          interactions,
+          cost,
+          title,
+          publishDate,
+          platform,
+          platformIcon
+        })
+
+        // 避免请求过快被封
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+
+      setUploadStatus(`处理完成，成功处理 ${processedData.length} 条数据`)
+
+      // 将数据添加到系统中
+      addVideosToSystem(processedData)
+
+      // 重置表单
+      setUploadFY('')
+      setUploadProduct('')
+      setUploadCampaign('')
+      setUploadFile(null)
+      setUploadStatus('')
+      setProcessing(false)
+      alert('数据上传成功！所有视频数据已录入系统。')
+
+    } catch (error) {
+      console.error('处理文件失败:', error)
+      setUploadStatus('处理失败: ' + error.message)
+      setProcessing(false)
+      alert('处理文件失败，请检查控制台错误信息')
+    }
+  }
+
+  const addVideosToSystem = (videos) => {
+    videos.forEach(video => {
+      // 生成新视频对象
+      const newVideo = {
+        videoId: `video${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        name: video.title,
+        videoUrl: video.url,
+        platform: video.platform,
+        platformIcon: video.platformIcon,
+        publishDate: video.publishDate,
+        views: video.views,
+        interactions: video.interactions,
+        cost: video.cost
+      }
+
+      // 生成新campaign对象（如果需要）
+      const newCampaign = {
+        campaignId: `campaign${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        campaignName: uploadCampaign,
+        productName: uploadProduct,
+        fy: uploadFY,
+        videos: [newVideo]
+      }
+
+      // 生成新KOL对象（如果需要）
+      const newKol = {
+        id: `kol${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        name: video.kolName,
+        avatar: `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=professional%20influencer%20avatar&image_size=square`,
+        followerCount: 0,
+        bilibiliUsername: video.kolName,
+        bilibiliId: '',
+        xiaohongshuUsername: video.kolName,
+        xiaohongshuId: '',
+        douyinUsername: video.kolName,
+        douyinId: '',
+        campaigns: [newCampaign]
+      }
+
+      // 一次性更新状态，避免异步更新问题
+      setKols(prev => {
+        // 查找KOL
+        const existingKolIndex = prev.findIndex(k => k.name === video.kolName)
+        
+        if (existingKolIndex === -1) {
+          // KOL不存在，添加新KOL
+          return [...prev, newKol]
+        } else {
+          // KOL存在，查找campaign
+          const existingKol = prev[existingKolIndex]
+          const existingCampaignIndex = existingKol.campaigns.findIndex(c => c.campaignName === uploadCampaign)
+          
+          if (existingCampaignIndex === -1) {
+            // Campaign不存在，添加新campaign
+            return prev.map((k, index) => 
+              index === existingKolIndex 
+                ? { ...k, campaigns: [...k.campaigns, newCampaign] }
+                : k
+            )
+          } else {
+            // Campaign存在，添加视频
+            return prev.map((k, index) => 
+              index === existingKolIndex 
+                ? {
+                    ...k,
+                    campaigns: k.campaigns.map((c, cIndex) => 
+                      cIndex === existingCampaignIndex
+                        ? { ...c, videos: [...c.videos, newVideo] }
+                        : c
+                    )
+                  }
+                : k
+            )
+          }
+        }
+      })
+    })
+  }
+
   const handleCampaignFormChange = (e) => {
     const { name, value } = e.target
     
@@ -557,11 +813,7 @@ function App() {
     setFilePreview(URL.createObjectURL(file))
   }
 
-  const handleFileUpload = () => {
-    alert('文件上传成功！')
-    setSelectedFile(null)
-    setFilePreview(null)
-  }
+
 
   const handleKolSearchChange = (e) => {
     const value = e.target.value
@@ -716,6 +968,12 @@ function App() {
                 className={`px-4 py-2 rounded-md ${activeTab === 'kol' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
               >
                 KOL表现
+              </button>
+              <button
+                onClick={() => setActiveTab('upload')}
+                className={`px-4 py-2 rounded-md ${activeTab === 'upload' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+              >
+                上传数据
               </button>
             </div>
           </div>
@@ -1459,6 +1717,109 @@ function App() {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {activeTab === 'upload' && (
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">上传达人视频数据</h1>
+            
+            <div className="bg-white shadow rounded-lg p-6 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">选择筛选条件</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">财年</label>
+                  <select
+                    value={uploadFY}
+                    onChange={(e) => setUploadFY(e.target.value)}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                  >
+                    <option value="">请选择财年</option>
+                    {availableFYs.map(fy => (
+                      <option key={fy} value={fy}>{fy}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">产品</label>
+                  <select
+                    value={uploadProduct}
+                    onChange={(e) => setUploadProduct(e.target.value)}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                  >
+                    <option value="">请选择产品</option>
+                    {availableProducts.map(product => (
+                      <option key={product} value={product}>{product}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">项目</label>
+                  <select
+                    value={uploadCampaign}
+                    onChange={(e) => setUploadCampaign(e.target.value)}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                  >
+                    <option value="">请选择项目</option>
+                    {availableCampaigns
+                      .filter(c => 
+                        (!uploadFY || c.fy === uploadFY) && 
+                        (!uploadProduct || c.productName === uploadProduct)
+                      )
+                      .map(campaign => (
+                        <option key={campaign.id} value={campaign.name}>{campaign.name}</option>
+                      ))
+                    }
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">上传Excel文件</h2>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                <div className="flex flex-col items-center justify-center">
+                  <svg className="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-sm text-gray-600 mb-4">拖拽文件到此处或点击上传</p>
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    onChange={(e) => setUploadFile(e.target.files[0])}
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <label
+                    htmlFor="file-upload"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer"
+                  >
+                    选择文件
+                  </label>
+                  {uploadFile && (
+                    <div className="mt-4 text-sm text-gray-600">
+                      已选择文件: {uploadFile.name}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={handleFileUpload}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  disabled={processing}
+                >
+                  {processing ? '处理中...' : '上传并处理数据'}
+                </button>
+              </div>
+              {uploadStatus && (
+                <div className="mt-4 p-4 bg-gray-100 rounded-md">
+                  <p className="text-sm text-gray-700">{uploadStatus}</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
