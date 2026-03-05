@@ -209,6 +209,32 @@ const mockCampaigns = [
       bilibili: { views: 50000, cost: 5000 },
       other: { views: 0, cost: 0 }
     }
+  },
+  {
+    id: 'campaign6',
+    name: 'Y9S4 China Campaign',
+    productName: '荣耀战魂',
+    fy: 'FY26',
+    startDate: '2026-03-01',
+    endDate: '2026-03-31',
+    totalBudget: 100000,
+    totalSpent: 0,
+    kolCount: 0,
+    contentCount: 0,
+    totalViews: 0,
+    totalInteractions: 0,
+    barterKOLCount: 0,
+    barterVideoCount: 0,
+    barterViews: 0,
+    paidKOLCount: 0,
+    paidVideoCount: 0,
+    paidViews: 0,
+    platforms: {
+      xiaohongshu: { views: 0, cost: 0 },
+      douyin: { views: 0, cost: 0 },
+      bilibili: { views: 0, cost: 0 },
+      other: { views: 0, cost: 0 }
+    }
   }
 ]
 
@@ -369,7 +395,7 @@ function App() {
     }
   })
   
-  const productOptions = ['碧海黑帆', '刺客信条：影']
+  const productOptions = ['碧海黑帆', '刺客信条：影', '荣耀战魂']
   
   const [kolSearchQuery, setKolSearchQuery] = useState('')
   const [showKolDropdown, setShowKolDropdown] = useState(false)
@@ -425,34 +451,48 @@ function App() {
 
   const crawlVideoInfo = async (url) => {
     try {
+      console.log('开始爬取视频信息:', url);
       const response = await axios.get(url)
       const $ = cheerio.default.load(response.data)
       
       // 尝试获取标题
       let title = $('title').text().trim() || '未知标题'
+      console.log('爬取到标题:', title);
       
       // 尝试获取发布日期（不同平台可能有不同的选择器）
       let publishDate = new Date().toISOString().split('T')[0]
       
-      // 这里需要根据不同平台的HTML结构调整选择器
-      // 示例：B站
-      const bilibiliDate = $('meta[property="article:published_time"]').attr('content')
+      // 这里需要根据不同平台的 HTML 结构调整选择器
+      // B 站
+      const bilibiliDate = $('meta[itemprop="datePublished"]').attr('content') || $('meta[itemprop="uploadDate"]').attr('content')
       if (bilibiliDate) {
-        publishDate = new Date(bilibiliDate).toISOString().split('T')[0]
+        // 处理日期格式：2025-12-25 00:23:31 -> 2025-12-25
+        publishDate = bilibiliDate.split(' ')[0]
+        console.log('从 B 站爬取到发布日期:', publishDate);
       }
       
-      // 示例：小红书
+      // 小红书
       const xhsDate = $('meta[name="publish_time"]').attr('content')
       if (xhsDate) {
         publishDate = new Date(xhsDate).toISOString().split('T')[0]
+        console.log('从小红书爬取到发布日期:', publishDate);
       }
       
-      // 示例：抖音
+      // 抖音
       const douyinDate = $('meta[property="article:published_time"]').attr('content')
       if (douyinDate) {
         publishDate = new Date(douyinDate).toISOString().split('T')[0]
+        console.log('从抖音爬取到发布日期:', publishDate);
       }
       
+      // 快手
+      const kuaishouDate = $('meta[property="article:published_time"]').attr('content') || $('meta[name="publish_time"]').attr('content')
+      if (kuaishouDate) {
+        publishDate = new Date(kuaishouDate).toISOString().split('T')[0]
+        console.log('从快手爬取到发布日期:', publishDate);
+      }
+      
+      console.log('最终爬取结果:', { title, publishDate });
       return { title, publishDate }
     } catch (error) {
       console.error('爬取视频信息失败:', error)
@@ -479,6 +519,7 @@ function App() {
     if (url.includes('bilibili')) return 'bilibili'
     if (url.includes('xiaohongshu')) return 'xiaohongshu'
     if (url.includes('douyin') || url.includes('tiktok')) return 'douyin'
+    if (url.includes('kuaishou')) return 'kuaishou'
     return 'other'
   }
 
@@ -490,6 +531,8 @@ function App() {
         return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=douyin%20logo%20icon&image_size=square'
       case 'bilibili':
         return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=bilibili%20logo%20icon&image_size=square'
+      case 'kuaishou':
+        return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=kuaishou%20logo%20icon&image_size=square'
       default:
         return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=generic%20platform%20icon&image_size=square'
     }
@@ -511,24 +554,57 @@ function App() {
 
       // 处理每条数据
       const processedData = []
+      let previousKolName = ''
       for (let i = 0; i < excelData.length; i++) {
         const row = excelData[i]
         setUploadStatus(`处理第 ${i + 1}/${excelData.length} 条数据`)
 
         // 提取数据
-        const url = row['url'] || row['视频链接'] || row['链接'] || ''
-        const kolName = row['kol'] || row['KOL'] || row['达人'] || row['姓名'] || '未知KOL'
-        const views = parseInt(row['播放量'] || row['观看量'] || 0)
-        const interactions = parseInt(row['互动量'] || row['互动'] || 0)
-        const cost = processCost(row['价格'] || row['花费'] || row['费用'] || 0)
+        // 尝试多种可能的列名
+        const url = row['url'] || row['视频链接'] || row['链接'] || row['Video URL'] || row['video_url'] || ''
+        let kolName = row['kol'] || row['KOL'] || row['达人'] || row['姓名'] || row['name'] || row['Name'] || ''
+        
+        // 处理合并单元格的情况：如果当前行没有达人名称，使用上一行的达人名称
+        if (!kolName && previousKolName) {
+          kolName = previousKolName
+        } else if (kolName) {
+          previousKolName = kolName
+        } else {
+          kolName = '未知KOL'
+        }
+        
+        const views = parseInt(row['播放量'] || row['观看量'] || row['views'] || row['Views'] || 0)
+        const interactions = parseInt(row['互动量'] || row['互动'] || row['interactions'] || row['Interactions'] || 0)
+        const cost = processCost(row['价格'] || row['花费'] || row['费用'] || row['cost'] || row['Cost'] || 0)
+        
+        // 打印提取的数据，以便调试
+        console.log('Row data:', row);
+        console.log('Extracted data:', { url, kolName, views, interactions, cost, previousKolName });
 
         if (!url) {
-          console.warn('跳过缺少URL的行:', row)
+          console.warn('跳过缺少 URL 的行:', row)
           continue
         }
 
-        // 爬取视频信息
-        const { title, publishDate } = await crawlVideoInfo(url)
+        // 尝试从 Excel 中读取视频标题和发布时间
+        let title = row['标题'] || row['视频标题'] || row['name'] || row['Name'] || ''
+        let publishDate = row['发布时间'] || row['发布日期'] || row['publishDate'] || row['PublishDate'] || ''
+        let avatar = row['头像'] || row['KOL 头像'] || row['avatar'] || row['Avatar'] || ''
+        
+        // 如果 Excel 中没有提供标题和发布时间，尝试爬取（可能会失败）
+        if (!title || !publishDate) {
+          try {
+            console.log(`尝试爬取视频信息：${url}`)
+            const crawledInfo = await crawlVideoInfo(url)
+            if (!title) title = crawledInfo.title
+            if (!publishDate) publishDate = crawledInfo.publishDate
+          } catch (error) {
+            console.warn(`爬取视频信息失败，使用默认值：${url}`, error.message)
+            if (!title) title = `视频 ${i + 1}`
+            if (!publishDate) publishDate = new Date().toISOString().split('T')[0]
+          }
+        }
+
         const platform = processVideoPlatform(url)
         const platformIcon = getPlatformIcon(platform)
 
@@ -545,13 +621,13 @@ function App() {
         })
 
         // 避免请求过快被封
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise(resolve => setTimeout(resolve, 500))
       }
 
       setUploadStatus(`处理完成，成功处理 ${processedData.length} 条数据`)
 
       // 将数据添加到系统中
-      addVideosToSystem(processedData)
+      await addVideosToSystem(processedData)
 
       // 重置表单
       setUploadFY('')
@@ -570,8 +646,56 @@ function App() {
     }
   }
 
-  const addVideosToSystem = (videos) => {
-    videos.forEach(video => {
+  // 尝试从各个平台爬取KOL头像
+  const crawlKolAvatar = async (kolName) => {
+    try {
+      // 尝试从B站爬取
+      const bilibiliSearchUrl = `https://search.bilibili.com/upuser?keyword=${encodeURIComponent(kolName)}`
+      const bilibiliResponse = await axios.get(bilibiliSearchUrl)
+      const $bilibili = cheerio.default.load(bilibiliResponse.data)
+      const bilibiliAvatar = $bilibili('.up-card .up-face img').attr('src')
+      if (bilibiliAvatar) {
+        return bilibiliAvatar
+      }
+      
+      // 尝试从抖音爬取
+      const douyinSearchUrl = `https://www.douyin.com/search/${encodeURIComponent(kolName)}`
+      const douyinResponse = await axios.get(douyinSearchUrl)
+      const $douyin = cheerio.default.load(douyinResponse.data)
+      const douyinAvatar = $douyin('.user-avatar img').attr('src')
+      if (douyinAvatar) {
+        return douyinAvatar
+      }
+      
+      // 尝试从快手爬取
+      const kuaishouSearchUrl = `https://www.kuaishou.com/search/${encodeURIComponent(kolName)}`
+      const kuaishouResponse = await axios.get(kuaishouSearchUrl)
+      const $kuaishou = cheerio.default.load(kuaishouResponse.data)
+      const kuaishouAvatar = $kuaishou('.user-avatar img').attr('src')
+      if (kuaishouAvatar) {
+        return kuaishouAvatar
+      }
+      
+      // 尝试从小红书爬取
+      const xhsSearchUrl = `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(kolName)}`
+      const xhsResponse = await axios.get(xhsSearchUrl)
+      const $xhs = cheerio.default.load(xhsResponse.data)
+      const xhsAvatar = $xhs('.user-avatar img').attr('src')
+      if (xhsAvatar) {
+        return xhsAvatar
+      }
+      
+      // 如果都没有，返回默认头像
+      return `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=professional%20influencer%20avatar&image_size=square`
+    } catch (error) {
+      console.error('爬取KOL头像失败:', error)
+      return `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=professional%20influencer%20avatar&image_size=square`
+    }
+  }
+
+  const addVideosToSystem = async (videos) => {
+    for (let i = 0; i < videos.length; i++) {
+      const video = videos[i]
       // 生成新视频对象
       const newVideo = {
         videoId: `video${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -594,11 +718,11 @@ function App() {
         videos: [newVideo]
       }
 
-      // 生成新KOL对象（如果需要）
+      // 生成新 KOL 对象（如果需要）
       const newKol = {
         id: `kol${Date.now()}_${Math.floor(Math.random() * 1000)}`,
         name: video.kolName,
-        avatar: `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=professional%20influencer%20avatar&image_size=square`,
+        avatar: '',
         followerCount: 0,
         bilibiliUsername: video.kolName,
         bilibiliId: '',
@@ -606,6 +730,8 @@ function App() {
         xiaohongshuId: '',
         douyinUsername: video.kolName,
         douyinId: '',
+        kuaishouUsername: video.kolName,
+        kuaishouId: '',
         campaigns: [newCampaign]
       }
 
@@ -614,9 +740,10 @@ function App() {
         // 查找KOL
         const existingKolIndex = prev.findIndex(k => k.name === video.kolName)
         
+        let updatedKols;
         if (existingKolIndex === -1) {
           // KOL不存在，添加新KOL
-          return [...prev, newKol]
+          updatedKols = [...prev, newKol]
         } else {
           // KOL存在，查找campaign
           const existingKol = prev[existingKolIndex]
@@ -624,14 +751,14 @@ function App() {
           
           if (existingCampaignIndex === -1) {
             // Campaign不存在，添加新campaign
-            return prev.map((k, index) => 
+            updatedKols = prev.map((k, index) => 
               index === existingKolIndex 
                 ? { ...k, campaigns: [...k.campaigns, newCampaign] }
                 : k
             )
           } else {
             // Campaign存在，添加视频
-            return prev.map((k, index) => 
+            updatedKols = prev.map((k, index) => 
               index === existingKolIndex 
                 ? {
                     ...k,
@@ -645,8 +772,12 @@ function App() {
             )
           }
         }
+        
+        // 打印更新后的KOL列表，以便调试
+        console.log('Updated KOLs:', updatedKols.map(kol => kol.name));
+        return updatedKols;
       })
-    })
+    }
   }
 
   const handleCampaignFormChange = (e) => {
@@ -897,10 +1028,43 @@ function App() {
   const filteredKOLs = kols.filter(kol => 
     kol.name.toLowerCase().includes(kolSearchQuery.toLowerCase())
   )
+  
+  // 打印当前KOL列表和搜索查询，以便调试
+  console.log('Current KOLs:', kols.map(kol => kol.name));
+  console.log('Search query:', kolSearchQuery);
+  console.log('Filtered KOLs:', filteredKOLs.map(kol => kol.name));
 
   const availableFYs = ['FY25', 'FY26', 'FY27']
-  const availableProducts = [...new Set(campaigns.map(c => c.productName))]
-  const availableCampaigns = campaigns
+  const availableProducts = [...new Set([...productOptions, ...campaigns.map(c => c.productName)])]
+  
+  // 从 kols 数组中获取所有的 campaign
+  const availableCampaigns = (() => {
+    const campaignMap = new Map()
+    // 首先添加 mockCampaigns 中的 campaign
+    campaigns.forEach(c => {
+      campaignMap.set(c.id, {
+        id: c.id,
+        name: c.name,
+        productName: c.productName,
+        fy: c.fy
+      })
+    })
+    // 然后从 kols 中获取所有的 campaign
+    kols.forEach(kol => {
+      kol.campaigns.forEach(c => {
+        if (!campaignMap.has(c.campaignId)) {
+          campaignMap.set(c.campaignId, {
+            id: c.campaignId,
+            name: c.campaignName,
+            productName: c.productName,
+            fy: c.fy
+          })
+        }
+      })
+    })
+    console.log('availableCampaigns:', Array.from(campaignMap.values()));
+    return Array.from(campaignMap.values())
+  })()
 
   const getKolAvailableFYs = () => {
     if (!selectedKolForDisplay) return []
@@ -1489,36 +1653,18 @@ function App() {
             <h1 className="text-2xl font-bold text-gray-900 mb-6">KOL表现</h1>
             
             <div className="bg-white shadow rounded-lg p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">搜索KOL</h2>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={kolSearchQuery}
-                  onChange={handleKolSearchChange}
-                  placeholder="输入KOL名字进行搜索..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                {showKolDropdown && filteredKOLs.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {filteredKOLs.map(kol => (
-                      <div
-                        key={kol.id}
-                        onClick={() => handleKolSelect(kol)}
-                        className="px-4 py-3 hover:bg-gray-100 cursor-pointer flex items-center space-x-3"
-                      >
-                        <img
-                          src={kol.avatar}
-                          alt={kol.name}
-                          className="w-10 h-10 rounded-full"
-                        />
-                        <div>
-                          <p className="font-medium text-gray-900">{kol.name}</p>
-                          <p className="text-sm text-gray-500">粉丝数: {kol.followerCount.toLocaleString()}</p>
-                        </div>
-                      </div>
-                    ))}
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">所有KOL</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {kols.map(kol => (
+                  <div
+                    key={kol.id}
+                    onClick={() => handleKolSelect(kol)}
+                    className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                  >
+                    <p className="font-medium text-gray-900">{kol.name}</p>
+                    <p className="text-sm text-gray-500">粉丝数：{kol.followerCount.toLocaleString()}</p>
                   </div>
-                )}
+                ))}
               </div>
             </div>
 
@@ -1526,14 +1672,8 @@ function App() {
               <>
                 <div className="bg-white shadow rounded-lg p-6 mb-6">
                   <div className="flex items-start justify-between mb-6">
-                    <div className="flex items-center space-x-6">
-                      <img
-                        src={selectedKolForDisplay.avatar}
-                        alt={selectedKolForDisplay.name}
-                        className="w-24 h-24 rounded-full"
-                      />
-                      <div>
-                        <h2 className="text-2xl font-bold text-gray-900">{selectedKolForDisplay.bilibiliUsername}</h2>
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">{selectedKolForDisplay.name}</h2>
                         <p className="text-gray-600">粉丝数: {selectedKolForDisplay.followerCount.toLocaleString()}</p>
                         <div className="mt-4 space-y-2">
                           <div className="flex items-center space-x-4">
@@ -1548,8 +1688,11 @@ function App() {
                             <span className="text-sm font-medium text-gray-700">抖音:</span>
                             <span className="text-sm text-gray-900">{selectedKolForDisplay.douyinUsername} (ID: {selectedKolForDisplay.douyinId})</span>
                           </div>
+                          <div className="flex items-center space-x-4">
+                            <span className="text-sm font-medium text-gray-700">快手:</span>
+                            <span className="text-sm text-gray-900">{selectedKolForDisplay.kuaishouUsername} (ID: {selectedKolForDisplay.kuaishouId})</span>
+                          </div>
                         </div>
-                      </div>
                     </div>
                     <button
                       onClick={() => setShowAddVideoForm(true)}
@@ -1617,7 +1760,9 @@ function App() {
                           {getKolAvailablePlatforms().map(platform => (
                             <option key={platform} value={platform}>
                               {platform === 'xiaohongshu' ? '小红书' : 
-                               platform === 'douyin' ? '抖音' : 'B站'}
+                               platform === 'douyin' ? '抖音' : 
+                               platform === 'bilibili' ? 'B站' : 
+                               platform === 'kuaishou' ? '快手' : platform}
                             </option>
                           ))}
                         </select>
@@ -1693,7 +1838,9 @@ function App() {
                                 <img src={video.platformIcon} alt={video.platform} className="w-5 h-5 mr-2" />
                                 <span className="text-sm text-gray-900">
                                   {video.platform === 'xiaohongshu' ? '小红书' : 
-                                   video.platform === 'douyin' ? '抖音' : 'B站'}
+                                   video.platform === 'douyin' ? '抖音' : 
+                                   video.platform === 'bilibili' ? 'B站' : 
+                                   video.platform === 'kuaishou' ? '快手' : video.platform}
                                 </span>
                               </div>
                             </td>
@@ -1723,6 +1870,33 @@ function App() {
         {activeTab === 'upload' && (
           <div>
             <h1 className="text-2xl font-bold text-gray-900 mb-6">上传达人视频数据</h1>
+            
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-yellow-700">
+                    <strong>重要提示：</strong>由于浏览器安全限制，系统无法自动爬取视频信息。请在 Excel 表格中直接提供以下列：
+                  </p>
+                  <ul className="text-sm text-yellow-700 mt-2 list-disc list-inside">
+                    <li><strong>视频标题</strong>（必需）- 列名：标题、视频标题、name、Name</li>
+                    <li><strong>发布时间</strong>（必需）- 列名：发布时间、发布日期、publishDate、PublishDate</li>
+                    <li><strong>视频链接</strong>（必需）- 列名：url、视频链接、链接、Video URL</li>
+                    <li><strong>KOL 名称</strong>（必需）- 列名：kol、KOL、达人、姓名、name、Name</li>
+                    <li><strong>播放量</strong>（可选）- 列名：播放量、观看量、views、Views</li>
+                    <li><strong>互动量</strong>（可选）- 列名：互动量、互动、interactions、Interactions</li>
+                    <li><strong>价格/花费</strong>（可选）- 列名：价格、花费、费用、cost、Cost</li>
+                  </ul>
+                  <p className="text-sm text-yellow-700 mt-2">
+                    <strong>提示：</strong>如果 Excel 中没有提供视频标题和发布时间，系统会显示"未知标题"和使用当前日期。
+                  </p>
+                </div>
+              </div>
+            </div>
             
             <div className="bg-white shadow rounded-lg p-6 mb-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">选择筛选条件</h2>
@@ -1763,15 +1937,9 @@ function App() {
                     className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
                   >
                     <option value="">请选择项目</option>
-                    {availableCampaigns
-                      .filter(c => 
-                        (!uploadFY || c.fy === uploadFY) && 
-                        (!uploadProduct || c.productName === uploadProduct)
-                      )
-                      .map(campaign => (
-                        <option key={campaign.id} value={campaign.name}>{campaign.name}</option>
-                      ))
-                    }
+                    {availableCampaigns.map(campaign => (
+                      <option key={campaign.id} value={campaign.name}>{campaign.name}</option>
+                    ))}
                   </select>
                 </div>
               </div>
