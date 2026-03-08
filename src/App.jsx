@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis } from 'recharts'
 import * as XLSX from 'xlsx'
 import axios from 'axios'
@@ -376,7 +376,31 @@ function App() {
   const [selectedFY, setSelectedFY] = useState('FY26')
   const [selectedScatterPlatform, setSelectedScatterPlatform] = useState('xiaohongshu')
   
-  const [campaigns, setCampaigns] = useState(mockCampaigns)
+  const [campaigns, setCampaigns] = useState(() => {
+    // 尝试从 localStorage 加载数据
+    const savedCampaigns = localStorage.getItem('campaigns')
+    if (savedCampaigns) {
+      try {
+        console.log('从 localStorage 加载 Campaign 数据')
+        return JSON.parse(savedCampaigns)
+      } catch (error) {
+        console.error('加载 Campaign 数据失败，使用默认数据:', error)
+        return mockCampaigns
+      }
+    }
+    console.log('使用默认 Campaign 数据')
+    return mockCampaigns
+  })
+  
+  // 当 campaigns 数据变化时，保存到 localStorage
+  useEffect(() => {
+    try {
+      console.log('保存 Campaign 数据到 localStorage')
+      localStorage.setItem('campaigns', JSON.stringify(campaigns))
+    } catch (error) {
+      console.error('保存 Campaign 数据失败:', error)
+    }
+  }, [campaigns])
   const [showCampaignForm, setShowCampaignForm] = useState(false)
   const [editingCampaign, setEditingCampaign] = useState(null)
   const [campaignFormData, setCampaignFormData] = useState({
@@ -413,7 +437,31 @@ function App() {
     campaignName: ''
   })
   
-  const [kols, setKols] = useState(mockKOLs)
+  const [kols, setKols] = useState(() => {
+    // 尝试从 localStorage 加载数据
+    const savedKols = localStorage.getItem('kols')
+    if (savedKols) {
+      try {
+        console.log('从 localStorage 加载 KOL 数据')
+        return JSON.parse(savedKols)
+      } catch (error) {
+        console.error('加载 KOL 数据失败，使用默认数据:', error)
+        return mockKOLs
+      }
+    }
+    console.log('使用默认 KOL 数据')
+    return mockKOLs
+  })
+  
+  // 当 kols 数据变化时，保存到 localStorage
+  useEffect(() => {
+    try {
+      console.log('保存 KOL 数据到 localStorage')
+      localStorage.setItem('kols', JSON.stringify(kols))
+    } catch (error) {
+      console.error('保存 KOL 数据失败:', error)
+    }
+  }, [kols])
   const [showKOLForm, setShowKOLForm] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
   const [filePreview, setFilePreview] = useState(null)
@@ -518,7 +566,8 @@ function App() {
   const processVideoPlatform = (url) => {
     if (url.includes('bilibili')) return 'bilibili'
     if (url.includes('xiaohongshu')) return 'xiaohongshu'
-    if (url.includes('douyin') || url.includes('tiktok')) return 'douyin'
+    if (url.includes('douyin')) return 'douyin'
+    if (url.includes('tiktok')) return 'tiktok'
     if (url.includes('kuaishou')) return 'kuaishou'
     return 'other'
   }
@@ -533,6 +582,8 @@ function App() {
         return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=bilibili%20logo%20icon&image_size=square'
       case 'kuaishou':
         return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=kuaishou%20logo%20icon&image_size=square'
+      case 'tiktok':
+        return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=tiktok%20logo%20icon&image_size=square'
       default:
         return 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=generic%20platform%20icon&image_size=square'
     }
@@ -552,6 +603,34 @@ function App() {
       const excelData = await parseExcelFile(uploadFile)
       setUploadStatus(`解析完成，发现 ${excelData.length} 条数据`)
 
+      // 处理 Excel 日期格式（Excel 日期是从 1899-12-30 开始的天数）
+      const processExcelDate = (value) => {
+        if (!value) return new Date().toISOString().split('T')[0]
+        
+        // 如果是数字，说明是 Excel 日期格式
+        if (typeof value === 'number') {
+          // Excel 日期系统从 1899-12-30 开始，需要减去 25569 天转换为 Unix 时间戳
+          const excelEpoch = new Date(1899, 11, 30)
+          const excelDate = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000)
+          return excelDate.toISOString().split('T')[0]
+        }
+        
+        // 如果是字符串，尝试解析中文日期格式 "2026 年 12 月 19 号"
+        if (typeof value === 'string') {
+          const match = value.match(/(\d{4}) 年 (\d{1,2}) 月 (\d{1,2})(号 | 日)?/)
+          if (match) {
+            const year = match[1]
+            const month = match[2].padStart(2, '0')
+            const day = match[3].padStart(2, '0')
+            return `${year}-${month}-${day}`
+          }
+          // 如果不是中文格式，直接返回原值
+          return value
+        }
+        
+        return value
+      }
+
       // 处理每条数据
       const processedData = []
       let previousKolName = ''
@@ -561,8 +640,8 @@ function App() {
 
         // 提取数据
         // 尝试多种可能的列名
-        const url = row['url'] || row['视频链接'] || row['链接'] || row['Video URL'] || row['video_url'] || ''
-        let kolName = row['kol'] || row['KOL'] || row['达人'] || row['姓名'] || row['name'] || row['Name'] || ''
+        const url = row['url'] || row['视频链接'] || row['链接'] || row['Video URL'] || row['video_url'] || row['B'] || ''
+        let kolName = row['kol'] || row['KOL'] || row['达人'] || row['姓名'] || row['name'] || row['Name'] || row['A'] || ''
         
         // 处理合并单元格的情况：如果当前行没有达人名称，使用上一行的达人名称
         if (!kolName && previousKolName) {
@@ -570,12 +649,15 @@ function App() {
         } else if (kolName) {
           previousKolName = kolName
         } else {
-          kolName = '未知KOL'
+          kolName = '未知 KOL'
         }
         
-        const views = parseInt(row['播放量'] || row['观看量'] || row['views'] || row['Views'] || 0)
-        const interactions = parseInt(row['互动量'] || row['互动'] || row['interactions'] || row['Interactions'] || 0)
-        const cost = processCost(row['价格'] || row['花费'] || row['费用'] || row['cost'] || row['Cost'] || 0)
+        // 播放量：添加对"播放"列的支持
+        const views = parseInt(row['播放量'] || row['播放'] || row['观看量'] || row['views'] || row['Views'] || row['C'] || 0) || 0
+        // 互动量：添加对"互动"列的支持
+        const interactions = parseInt(row['互动量'] || row['互动'] || row['互动数'] || row['interactions'] || row['Interactions'] || row['D'] || 0) || 0
+        // 金额/价格：添加对"金额"和"Cost"列的支持
+        const cost = processCost(row['价格'] || row['花费'] || row['费用'] || row['金额'] || row['Cost'] || row['cost'] || row['F'] || 0)
         
         // 打印提取的数据，以便调试
         console.log('Row data:', row);
@@ -587,8 +669,10 @@ function App() {
         }
 
         // 尝试从 Excel 中读取视频标题和发布时间
-        let title = row['标题'] || row['视频标题'] || row['name'] || row['Name'] || ''
-        let publishDate = row['发布时间'] || row['发布日期'] || row['publishDate'] || row['PublishDate'] || ''
+        let title = row['标题'] || row['视频标题'] || row['name'] || row['Name'] || row['C'] || ''
+        // 添加对"发布时间"列的支持，并处理 Excel 日期格式
+        let publishDateRaw = row['发布时间'] || row['发布日期'] || row['publishDate'] || row['PublishDate'] || row['E'] || ''
+        let publishDate = processExcelDate(publishDateRaw)
         let avatar = row['头像'] || row['KOL 头像'] || row['avatar'] || row['Avatar'] || ''
         
         // 如果 Excel 中没有提供标题和发布时间，尝试爬取（可能会失败）
@@ -773,9 +857,90 @@ function App() {
           }
         }
         
-        // 打印更新后的KOL列表，以便调试
+        // 打印更新后的 KOL 列表，以便调试
         console.log('Updated KOLs:', updatedKols.map(kol => kol.name));
         return updatedKols;
+      })
+      
+      // 同时更新 campaigns 数组
+      setCampaigns(prev => {
+        // 查找是否存在相同的 campaign
+        const existingCampaignIndex = prev.findIndex(c => 
+          c.name === uploadCampaign && 
+          c.productName === uploadProduct && 
+          c.fy === uploadFY
+        )
+        
+        if (existingCampaignIndex === -1) {
+          // Campaign 不存在，创建新的 campaign
+          const newCampaignForList = {
+            id: `campaign${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            name: uploadCampaign,
+            productName: uploadProduct,
+            fy: uploadFY,
+            startDate: new Date().toISOString().split('T')[0],
+            endDate: new Date().toISOString().split('T')[0],
+            totalBudget: 0,
+            totalSpent: videos.reduce((sum, v) => sum + (v.cost || 0), 0),
+            kolCount: 1,
+            contentCount: videos.length,
+            totalViews: videos.reduce((sum, v) => sum + (v.views || 0), 0),
+            totalInteractions: videos.reduce((sum, v) => sum + (v.interactions || 0), 0),
+            barterKOLCount: 0,
+            barterVideoCount: 0,
+            barterViews: 0,
+            paidKOLCount: 1,
+            paidVideoCount: videos.length,
+            paidViews: videos.reduce((sum, v) => sum + (v.views || 0), 0),
+            platforms: {
+              xiaohongshu: { views: 0, cost: 0 },
+              douyin: { views: 0, cost: 0 },
+              bilibili: { views: 0, cost: 0 },
+              kuaishou: { views: 0, cost: 0 },
+              other: { views: 0, cost: 0 }
+            }
+          }
+          
+          // 计算各平台数据
+          videos.forEach(video => {
+            const platform = video.platform;
+            if (newCampaignForList.platforms[platform]) {
+              newCampaignForList.platforms[platform].views += (video.views || 0);
+              newCampaignForList.platforms[platform].cost += (video.cost || 0);
+            }
+          });
+          
+          console.log('创建新 Campaign:', newCampaignForList.name);
+          return [...prev, newCampaignForList];
+        } else {
+          // Campaign 存在，更新现有 campaign 的数据
+          console.log('更新现有 Campaign:', prev[existingCampaignIndex].name);
+          return prev.map((c, index) => {
+            if (index === existingCampaignIndex) {
+              // 更新统计数据
+              const updatedPlatforms = { ...c.platforms };
+              videos.forEach(video => {
+                const platform = video.platform;
+                if (updatedPlatforms[platform]) {
+                  updatedPlatforms[platform].views += (video.views || 0);
+                  updatedPlatforms[platform].cost += (video.cost || 0);
+                }
+              });
+              
+              return {
+                ...c,
+                totalSpent: c.totalSpent + videos.reduce((sum, v) => sum + (v.cost || 0), 0),
+                contentCount: c.contentCount + videos.length,
+                totalViews: c.totalViews + videos.reduce((sum, v) => sum + (v.views || 0), 0),
+                totalInteractions: c.totalInteractions + videos.reduce((sum, v) => sum + (v.interactions || 0), 0),
+                paidVideoCount: c.paidVideoCount + videos.length,
+                paidViews: c.paidViews + videos.reduce((sum, v) => sum + (v.views || 0), 0),
+                platforms: updatedPlatforms
+              };
+            }
+            return c;
+          });
+        }
       })
     }
   }
@@ -932,10 +1097,13 @@ function App() {
   }
 
   const handleDeleteCampaign = (campaignId) => {
-    setCampaigns(prev => prev.filter(c => c.id !== campaignId))
-    if (selectedCampaign.id === campaignId) {
-      setSelectedCampaign(campaigns[0])
-    }
+    setCampaigns(prev => {
+      const updated = prev.filter(c => c.id !== campaignId)
+      if (selectedCampaign.id === campaignId && updated.length > 0) {
+        setSelectedCampaign(updated[0])
+      }
+      return updated
+    })
   }
 
   const handleFileChange = (e) => {
@@ -1042,7 +1210,8 @@ function App() {
     const campaignMap = new Map()
     // 首先添加 mockCampaigns 中的 campaign
     campaigns.forEach(c => {
-      campaignMap.set(c.id, {
+      const key = `${c.name}|${c.productName}|${c.fy}`
+      campaignMap.set(key, {
         id: c.id,
         name: c.name,
         productName: c.productName,
@@ -1052,8 +1221,9 @@ function App() {
     // 然后从 kols 中获取所有的 campaign
     kols.forEach(kol => {
       kol.campaigns.forEach(c => {
-        if (!campaignMap.has(c.campaignId)) {
-          campaignMap.set(c.campaignId, {
+        const key = `${c.campaignName}|${c.productName}|${c.fy}`
+        if (!campaignMap.has(key)) {
+          campaignMap.set(key, {
             id: c.campaignId,
             name: c.campaignName,
             productName: c.productName,
@@ -1467,25 +1637,25 @@ function App() {
                       <p className="text-sm text-gray-500">小红书</p>
                       <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.xiaohongshu.views.toLocaleString()}</p>
                       <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.xiaohongshu.cost.toLocaleString()}</p>
-                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.xiaohongshu.cost / selectedCampaign.platforms.xiaohongshu.views || 1).toFixed(2)}</p>
+                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.xiaohongshu.cost / (selectedCampaign.platforms.xiaohongshu.views || 1)).toFixed(2)}</p>
                     </div>
                     <div className="bg-green-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-500">抖音</p>
                       <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.douyin.views.toLocaleString()}</p>
                       <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.douyin.cost.toLocaleString()}</p>
-                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.douyin.cost / selectedCampaign.platforms.douyin.views || 1).toFixed(2)}</p>
+                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.douyin.cost / (selectedCampaign.platforms.douyin.views || 1)).toFixed(2)}</p>
                     </div>
                     <div className="bg-purple-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-500">B站</p>
                       <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.bilibili.views.toLocaleString()}</p>
                       <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.bilibili.cost.toLocaleString()}</p>
-                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.bilibili.cost / selectedCampaign.platforms.bilibili.views || 1).toFixed(2)}</p>
+                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.bilibili.cost / (selectedCampaign.platforms.bilibili.views || 1)).toFixed(2)}</p>
                     </div>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-500">其他平台</p>
                       <p className="text-xl font-bold text-gray-900">播放量: {selectedCampaign.platforms.other.views.toLocaleString()}</p>
                       <p className="text-lg text-gray-900">花费: ¥{selectedCampaign.platforms.other.cost.toLocaleString()}</p>
-                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.other.cost / selectedCampaign.platforms.other.views || 1).toFixed(2)}</p>
+                      <p className="text-lg text-gray-900">CPV: ¥{(selectedCampaign.platforms.other.cost / (selectedCampaign.platforms.other.views || 1)).toFixed(2)}</p>
                     </div>
                   </div>
                 </div>
@@ -1761,8 +1931,9 @@ function App() {
                             <option key={platform} value={platform}>
                               {platform === 'xiaohongshu' ? '小红书' : 
                                platform === 'douyin' ? '抖音' : 
-                               platform === 'bilibili' ? 'B站' : 
-                               platform === 'kuaishou' ? '快手' : platform}
+                               platform === 'bilibili' ? 'B 站' : 
+                               platform === 'kuaishou' ? '快手' : 
+                               platform === 'tiktok' ? 'TikTok' : platform}
                             </option>
                           ))}
                         </select>
@@ -1839,8 +2010,9 @@ function App() {
                                 <span className="text-sm text-gray-900">
                                   {video.platform === 'xiaohongshu' ? '小红书' : 
                                    video.platform === 'douyin' ? '抖音' : 
-                                   video.platform === 'bilibili' ? 'B站' : 
-                                   video.platform === 'kuaishou' ? '快手' : video.platform}
+                                   video.platform === 'bilibili' ? 'B 站' : 
+                                   video.platform === 'kuaishou' ? '快手' : 
+                                   video.platform === 'tiktok' ? 'TikTok' : video.platform}
                                 </span>
                               </div>
                             </td>
@@ -1878,22 +2050,36 @@ function App() {
                     <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                   </svg>
                 </div>
-                <div className="ml-3">
+                <div className="ml-3 flex-1">
                   <p className="text-sm text-yellow-700">
                     <strong>重要提示：</strong>由于浏览器安全限制，系统无法自动爬取视频信息。请在 Excel 表格中直接提供以下列：
                   </p>
                   <ul className="text-sm text-yellow-700 mt-2 list-disc list-inside">
                     <li><strong>视频标题</strong>（必需）- 列名：标题、视频标题、name、Name</li>
-                    <li><strong>发布时间</strong>（必需）- 列名：发布时间、发布日期、publishDate、PublishDate</li>
+                    <li><strong>发布时间</strong>（必需）- 列名：发布时间、发布日期、publishDate、PublishDate、<strong>列 E</strong></li>
                     <li><strong>视频链接</strong>（必需）- 列名：url、视频链接、链接、Video URL</li>
                     <li><strong>KOL 名称</strong>（必需）- 列名：kol、KOL、达人、姓名、name、Name</li>
                     <li><strong>播放量</strong>（可选）- 列名：播放量、观看量、views、Views</li>
-                    <li><strong>互动量</strong>（可选）- 列名：互动量、互动、interactions、Interactions</li>
-                    <li><strong>价格/花费</strong>（可选）- 列名：价格、花费、费用、cost、Cost</li>
+                    <li><strong>互动量</strong>（可选）- 列名：互动量、互动、interactions、Interactions、<strong>列 D</strong></li>
+                    <li><strong>价格/花费</strong>（可选）- 列名：价格、花费、费用、cost、Cost、<strong>列 F（金额）</strong></li>
                   </ul>
                   <p className="text-sm text-yellow-700 mt-2">
                     <strong>提示：</strong>如果 Excel 中没有提供视频标题和发布时间，系统会显示"未知标题"和使用当前日期。
                   </p>
+                </div>
+                <div className="ml-4">
+                  <button
+                    onClick={() => {
+                      if (window.confirm('确定要清除所有上传的数据吗？此操作不可恢复。')) {
+                        localStorage.removeItem('kols')
+                        localStorage.removeItem('campaigns')
+                        window.location.reload()
+                      }
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium"
+                  >
+                    清除所有数据
+                  </button>
                 </div>
               </div>
             </div>
